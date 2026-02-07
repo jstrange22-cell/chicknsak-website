@@ -1,5 +1,4 @@
-import { functions } from '@/lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +85,7 @@ export interface JobMateChatResponse {
   /** JobTread-compatible format for syncing */
   jobtreadPayload?: Record<string, unknown>;
 }
+
 // ---------------------------------------------------------------------------
 // ZIP Code Cost Multipliers (Localized Pricing)
 // ---------------------------------------------------------------------------
@@ -124,13 +124,13 @@ const ZIP_COST_MULTIPLIERS: Record<string, { multiplier: number; region: string 
 
 export function getCostMultiplier(zipCode?: string): { multiplier: number; region: string } {
   if (!zipCode) return ZIP_COST_MULTIPLIERS['default'];
-  
+
   // Try 3-digit prefix first, then 2-digit
   const prefix3 = zipCode.substring(0, 3);
   const prefix2 = zipCode.substring(0, 2);
-  
-  return ZIP_COST_MULTIPLIERS[prefix3] 
-    || ZIP_COST_MULTIPLIERS[prefix2] 
+
+  return ZIP_COST_MULTIPLIERS[prefix3]
+    || ZIP_COST_MULTIPLIERS[prefix2]
     || ZIP_COST_MULTIPLIERS['default'];
 }
 
@@ -214,7 +214,162 @@ export const ASSEMBLY_BUNDLES: Record<string, AssemblyBundle> = {
 };
 
 // ---------------------------------------------------------------------------
-// Mock Responses (fallback when edge function is unavailable)
+// System Prompts (ported from Cloud Function)
+// ---------------------------------------------------------------------------
+
+const BASE_SYSTEM_PROMPT = `You are JobMate, an expert AI construction estimating and project management assistant built into ProjectWorks — a field management app for contractors, builders, and remodelers.
+
+You have deep expertise in:
+- **Estimating**: Room-level cost breakdowns with labor, materials, and equipment. You know typical costs for residential and commercial construction across the US.
+- **Blueprint Takeoff**: Area calculations, linear measurements, volume computations with proper waste factors.
+- **Building Codes**: 2024 IRC, IBC, NEC, IPC/UPC, IECC references with specific section citations.
+- **Scopes of Work**: Professional SOW drafting with inclusions, exclusions, specs, and payment terms.
+- **Safety**: OSHA 29 CFR 1926 references, JHAs, toolbox talks, competent person requirements.
+- **Scheduling**: Critical path activities, trade coordination, lead times, inspection holds.
+- **RFIs**: Professional Request for Information drafting.
+- **Punch Lists**: Systematic deficiency identification organized by severity.
+- **Financial**: Invoice generation, change orders, progress billing, markup calculations.
+
+Guidelines:
+- Be specific with numbers, quantities, and costs. Contractors need real data.
+- Use industry-standard units (SF, LF, SY, CY, EA, LS, HR, etc.).
+- When estimating, organize by room/area with separate line items for labor and materials.
+- Default markup structure: 10% profit, 8% overhead, 7.5% tax, 5% contingency (adjustable).
+- Always mention that estimates should be verified against local pricing and conditions.
+- Format responses with markdown: headers, bold, bullet points, tables when appropriate.
+- Be concise but thorough — field workers are busy.
+- When you don't know exact local pricing, give national average ranges and note it.`;
+
+const MODE_PROMPTS: Record<string, string> = {
+  estimate: `You are in ESTIMATING mode. Build detailed room-by-room cost estimates with line items.
+For each area include: Description, Quantity, Unit, Unit Cost, Total Cost, Category (Labor/Material/Equipment).
+Always show subtotals per area, then hard costs total, then markups (profit, overhead, tax, contingency), then final price.
+If a ZIP code is provided, adjust costs for that region (e.g., NYC ~1.4x national avg, rural TN ~0.9x).`,
+
+  takeoff: `You are in TAKEOFF mode. Help with blueprint takeoff calculations.
+Calculate areas (use Shoelace formula for polygons), linear measurements, volumes.
+Always include waste factors (typically 10-15% for most materials).
+Show your math step by step so the contractor can verify.`,
+
+  walkthrough: `You are in WALKTHROUGH mode. The user is describing work room-by-room as if walking the jobsite.
+Extract line items from their descriptions, organize by room/area.
+Ask clarifying questions about quantities, quality level, or scope when descriptions are vague.
+Build a running estimate as they describe each area.`,
+
+  codes: `You are in BUILDING CODES mode. Reference specific code sections:
+- 2024 IRC for residential
+- 2024 IBC for commercial
+- 2023 NEC for electrical
+- 2024 IPC/UPC for plumbing
+- 2024 IECC for energy
+Always cite specific section numbers (e.g., "IRC R311.7.5.1 requires...").
+ALWAYS remind users to verify with their local Authority Having Jurisdiction (AHJ) as jurisdictions may adopt amendments.`,
+
+  scope: `You are in SCOPE OF WORK mode. Draft professional scopes with:
+1. Project Description, 2. Scope Inclusions (detailed), 3. Scope Exclusions,
+4. Materials & Specifications, 5. Workmanship Standards, 6. Schedule & Milestones,
+7. Payment Terms, 8. Warranty Provisions, 9. Cleanup & Protection.`,
+
+  safety: `You are in SAFETY mode. Reference OSHA 29 CFR 1926 for construction safety.
+Generate toolbox talks, JHAs, pre-task plans, or answer specific safety questions.
+Always emphasize that safety requirements are minimums and cite specific OSHA standards.`,
+
+  schedule: `You are in SCHEDULING mode. Help plan project schedules considering:
+critical path, trade coordination, material lead times, weather, inspections.
+Provide realistic durations based on crew sizes and productivity rates.`,
+
+  rfi: `You are in RFI mode. Draft professional Requests for Information with:
+Subject, Description of Issue/Discrepancy, Drawing/Spec References,
+Suggested Resolution, Cost/Schedule Impact Statement, Required Response Date.`,
+
+  punchlist: `You are in PUNCH LIST mode. Create systematic deficiency lists organized by:
+- RED: Critical (life-safety, code violations)
+- YELLOW: Major (functional issues, visible defects)
+- GREEN: Minor (cosmetic, touch-ups)
+Include specific location, description, responsible trade, and priority.`,
+
+  financial: `You are in FINANCIAL mode. Help with:
+- Progress billing schedules (Deposit → Milestones → Final)
+- Invoice generation from estimates
+- Change order creation with cost impact
+- Markup calculations and margin analysis
+Format financial data clearly with columns and totals.`,
+
+  general: '',
+};
+
+function buildSystemPrompt(mode: string, projectContext?: ProjectContext): string {
+  let prompt = BASE_SYSTEM_PROMPT;
+
+  const modePrompt = MODE_PROMPTS[mode] || '';
+  if (modePrompt) {
+    prompt += '\n\n' + modePrompt;
+  }
+
+  if (projectContext) {
+    prompt += '\n\nCurrent Project Context:';
+    if (projectContext.projectName) prompt += `\n- Project: ${projectContext.projectName}`;
+    if (projectContext.projectType) prompt += `\n- Type: ${projectContext.projectType}`;
+    if (projectContext.status) prompt += `\n- Status: ${projectContext.status}`;
+    if (projectContext.customerName) prompt += `\n- Customer: ${projectContext.customerName}`;
+    if (projectContext.address) {
+      const addr = projectContext.address;
+      const parts = [addr.city, addr.state, addr.zip].filter(Boolean);
+      if (parts.length > 0) prompt += `\n- Location: ${parts.join(', ')}`;
+    }
+    if (projectContext.progress != null) prompt += `\n- Progress: ${projectContext.progress}%`;
+  }
+
+  return prompt;
+}
+
+// ---------------------------------------------------------------------------
+// Gemini Client (direct browser call — CORS supported)
+// ---------------------------------------------------------------------------
+
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+
+let _genAI: GoogleGenerativeAI | null = null;
+
+function getGenAI(): GoogleGenerativeAI | null {
+  if (!GEMINI_API_KEY) {
+    console.warn('[JobMate] No Gemini API key found (VITE_GEMINI_API_KEY)');
+    return null;
+  }
+  if (!_genAI) {
+    _genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  }
+  return _genAI;
+}
+
+async function callGemini(
+  systemPrompt: string,
+  conversationHistory: ChatMessagePayload[],
+  userMessage: string,
+): Promise<string> {
+  const genAI = getGenAI();
+  if (!genAI) throw new Error('Gemini API key not configured');
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: systemPrompt,
+  });
+
+  // Build chat history (last 20 messages for context window)
+  const history = conversationHistory.slice(-20).map((msg) => ({
+    role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
+    parts: [{ text: msg.content }],
+  }));
+
+  const chat = model.startChat({ history });
+  const result = await chat.sendMessage(userMessage);
+  const response = result.response;
+
+  return response.text() || 'I apologize, I could not generate a response.';
+}
+
+// ---------------------------------------------------------------------------
+// Mock Responses (fallback when API key is not configured)
 // ---------------------------------------------------------------------------
 
 const MOCK_RESPONSES: Record<JobMateMode, string[]> = {
@@ -254,154 +409,36 @@ I organize estimates by room or area:
 What project are you estimating? Give me the details and I'll build a complete room-by-room breakdown with labor, materials, and your markups.`,
   ],
   takeoff: [
-    `I can help with blueprint takeoff calculations. Here's how I work:
-
-**Area Calculations (Shoelace Algorithm):**
-- Give me corner coordinates or dimensions
-- I'll calculate polygon area with deductions (windows, doors)
-
-**Linear Measurements:**
-- Wall lengths, trim runs, pipe lengths
-- Path-finding for continuous runs
-
-**Volume Calculations:**
-- Concrete pours (CY)
-- Excavation volumes
-- Fill material quantities
-
-**Material Quantities:**
-- Waste factors built in (typically 10-15%)
-- Unit conversions (SF → sheets, LF → pieces)
-
-Describe what you're measuring or give me dimensions and I'll calculate the takeoff with proper waste factors.`,
+    `I can help with blueprint takeoff calculations. Describe what you're measuring or give me dimensions and I'll calculate the takeoff with proper waste factors.`,
   ],
   walkthrough: [
-    `I'm ready for a **voice-to-estimate walkthrough**. Here's how it works:
-
-1. **Describe the work** room by room:
-   _"The kitchen needs new cabinets, countertops, backsplash tile, and refinish the hardwood floors. About 150 square feet."_
-
-2. **I'll extract line items** with this structure:
-   - Room/Area → Category → Description → Qty → Unit → Cost
-
-3. **I'll build the estimate** with:
-   - Localized pricing (based on your ZIP)
-   - Assembly bundles where applicable
-   - Standard markups
-
-Just describe the work like you're walking through the jobsite. Be as detailed or brief as you want — I'll ask clarifying questions if needed.
-
-What room or area should we start with?`,
+    `I'm ready for a **voice-to-estimate walkthrough**. Describe the work room by room and I'll extract line items and build the estimate. What room should we start with?`,
   ],
   codes: [
-    `I can look up building codes from the current editions:
-
-**Residential (2024 IRC):** Room dimensions, egress, stairs, railings, foundations
-**Commercial (2024 IBC):** Occupancy, fire-resistance, means of egress, ADA
-**Electrical (2023 NEC):** Branch circuits, GFCI/AFCI, service sizing, grounding
-**Plumbing (2024 IPC/UPC):** DWV, fixture units, water supply, gas piping
-**Energy (2024 IECC):** R-values, air sealing, equipment efficiency
-
-⚠️ **Always verify with your local AHJ** — jurisdictions may have stricter amendments.
-
-Which code area do you need help with?`,
+    `I can look up building codes from current editions (2024 IRC, IBC, 2023 NEC, 2024 IPC/UPC, IECC). Which code area do you need help with?`,
   ],
   scope: [
-    `I'll draft a professional scope of work. What trade or project type?
-
-A proper SOW includes:
-1. **Project Description** & location
-2. **Scope Inclusions** — detailed line items
-3. **Scope Exclusions** — what's NOT included
-4. **Materials & Specifications**
-5. **Workmanship Standards**
-6. **Schedule & Milestones**
-7. **Payment Terms** (progress billing schedule)
-8. **Warranty Provisions**
-9. **Cleanup & Protection**
-
-Tell me the trade, square footage, and quality level and I'll draft a ready-to-use scope.`,
+    `I'll draft a professional scope of work. Tell me the trade, square footage, and quality level and I'll draft a ready-to-use scope.`,
   ],
   safety: [
-    `Safety is priority one. I reference OSHA 29 CFR 1926 for construction:
-
-**Common Topics:**
-- Fall Protection (1926.501-503)
-- Scaffolding (1926.450-454)
-- Excavation/Trenching (1926.650-652)
-- Electrical Safety (1926.400-449)
-- PPE Requirements (1926.95-106)
-
-I can generate:
-- ✅ Toolbox talk scripts
-- ✅ Job Hazard Analysis (JHA) templates
-- ✅ Pre-task planning checklists
-- ✅ Competent Person requirements
-
-What safety concern or checklist do you need?`,
+    `Safety is priority one. I reference OSHA 29 CFR 1926 for construction. What safety concern or checklist do you need?`,
   ],
   schedule: [
-    `I'll help with project scheduling. Tell me:
-- Project type and scope
-- Key milestones and deadlines
-- Crew/trade availability
-
-I account for:
-- Critical path activities
-- Material lead times
-- Weather-sensitive work
-- Inspection hold points
-- Trade coordination and stacking
-
-What are you scheduling?`,
+    `I'll help with project scheduling. Tell me the project type, scope, milestones, and crew availability.`,
   ],
   rfi: [
-    `I'll draft a professional RFI. Give me:
-- The issue or discrepancy
-- Drawing/spec references
-- Your suggested resolution
-
-I'll format it with: Subject, Description, References, Suggested Resolution, Impact Statement, and Required Response Date.`,
+    `I'll draft a professional RFI. Give me the issue, drawing/spec references, and your suggested resolution.`,
   ],
   punchlist: [
-    `I'll create a systematic punch list. Tell me:
-- Area/rooms to inspect
-- Trades involved
-- Project stage (rough, finish, final)
-
-I organize by:
-- 🔴 **Critical** — Life-safety, code violations
-- 🟡 **Major** — Functional issues, visible defects
-- 🟢 **Minor** — Cosmetic, touch-ups
-
-What area should we walk through?`,
+    `I'll create a systematic punch list. Tell me the area/rooms, trades involved, and project stage.`,
   ],
   financial: [
-    `I can help with financial operations:
-
-**Invoicing:**
-- Progress billing (Deposit → Mid-Point → Final)
-- Generate invoice line items from estimates
-- Track payment status
-
-**Change Orders:**
-- Create COs linked to locked estimates
-- Track approvals and cost impact
-
-**QuickBooks Sync:**
-- Push invoices to QBO
-- Sync customer data
-- Track payment status
-
-**JobTread Sync:**
-- Push estimates as JobTread cost items
-- Sync financials with linked jobs
-
-What financial task do you need help with?`,
+    `I can help with invoicing, change orders, progress billing, and markup calculations. What financial task do you need?`,
   ],
 };
+
 // ---------------------------------------------------------------------------
-// API Call
+// API Call — Direct Gemini (primary) with mock fallback
 // ---------------------------------------------------------------------------
 
 let mockCounter: Record<JobMateMode, number> = {
@@ -419,68 +456,60 @@ export function resetMockCounters() {
 /**
  * Send a message to the JobMate AI assistant.
  *
- * Calls the `jobmateChat` Cloud Function which uses Claude (primary) or
- * Gemini (fallback) to generate construction-specific AI responses.
- *
- * Only falls back to mock responses when the Cloud Function is completely
- * unreachable (network error, function not deployed, etc.).
+ * Calls Google Gemini directly from the browser (CORS supported).
+ * Falls back to mock responses only when the API key is missing or
+ * the service is completely unreachable.
  */
 export async function sendJobMateMessage(
   request: JobMateChatRequest
 ): Promise<JobMateChatResponse> {
-  // Try live API first via Firebase Cloud Functions
-  try {
-    const jobmateChat = httpsCallable<Record<string, unknown>, Record<string, unknown>>(
-      functions,
-      'jobmateChat',
-      { timeout: 120_000 } // 2 minute timeout for AI responses
-    );
-    const result = await jobmateChat({
-      message: request.message,
-      mode: request.mode,
-      conversationHistory: request.conversationHistory,
-      projectContext: request.projectContext,
-      generateEstimate: request.generateEstimate,
-    });
+  const mode = request.mode || 'general';
 
-    const data = result.data;
-    if (data?.content) {
-      return {
-        content: data.content as string,
-        mode: (data.mode as JobMateMode) || request.mode,
-        estimate: data.estimate as EstimateOutput | undefined,
-        jobtreadPayload: data.jobtreadPayload as Record<string, unknown> | undefined,
-      };
-    }
+  // Build the system prompt with mode and project context
+  const systemPrompt = buildSystemPrompt(mode, request.projectContext);
 
-    console.warn('[JobMate] Cloud function returned no content, falling back to mock');
-  } catch (err: unknown) {
-    // Log the specific error for debugging
-    const errMsg = err instanceof Error ? err.message : String(err);
-    console.warn('[JobMate] Cloud function call failed:', errMsg);
+  // --- Try Gemini direct call (browser → Gemini API) ---
+  if (GEMINI_API_KEY) {
+    try {
+      console.log(`[JobMate] Calling Gemini directly (mode: ${mode})`);
+      const content = await callGemini(
+        systemPrompt,
+        request.conversationHistory,
+        request.message,
+      );
 
-    // If the error is an actual AI service error (not a network/deploy issue),
-    // show the error to the user rather than returning a misleading mock
-    const errCode = (err as { code?: string })?.code;
-    if (errCode === 'functions/unavailable') {
-      return {
-        content: '⚠️ The AI service is temporarily unavailable. Please try again in a moment.',
-        mode: request.mode,
-      };
+      if (content) {
+        console.log(`[JobMate] Gemini responded successfully`);
+        return { content, mode };
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('[JobMate] Gemini direct call failed:', errMsg);
+
+      // If it's a quota/rate limit error, tell the user
+      if (errMsg.includes('429') || errMsg.toLowerCase().includes('quota')) {
+        return {
+          content: '⚠️ AI rate limit reached. Please wait a moment and try again.',
+          mode,
+        };
+      }
+
+      // If it's an auth error (bad API key)
+      if (errMsg.includes('403') || errMsg.includes('401') || errMsg.toLowerCase().includes('api key')) {
+        return {
+          content: '⚠️ AI service configuration error. Please contact your administrator.',
+          mode,
+        };
+      }
     }
-    if (errCode === 'functions/unauthenticated') {
-      return {
-        content: '⚠️ You need to be signed in to use JobMate. Please sign in and try again.',
-        mode: request.mode,
-      };
-    }
+  } else {
+    console.warn('[JobMate] No VITE_GEMINI_API_KEY set — using mock responses');
   }
 
-  // Mock fallback — only reached when Cloud Functions are not deployed
+  // --- Mock fallback — only reached when API key is missing or call failed ---
   const delay = 600 + Math.random() * 1000;
   await new Promise((resolve) => setTimeout(resolve, delay));
 
-  const mode = request.mode || 'general';
   const responses = MOCK_RESPONSES[mode] || MOCK_RESPONSES.general;
   const idx = mockCounter[mode] % responses.length;
   mockCounter[mode] = idx + 1;
