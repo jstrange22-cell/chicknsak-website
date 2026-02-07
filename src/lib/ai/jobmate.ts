@@ -219,7 +219,7 @@ export const ASSEMBLY_BUNDLES: Record<string, AssemblyBundle> = {
 
 const MOCK_RESPONSES: Record<JobMateMode, string[]> = {
   general: [
-    `I'm **JobMate**, your AI construction estimating and management assistant. I'm built into ProjectWorks and can help with:
+    `I'm **JobMate**, your AI construction estimating and management assistant. I'm built into JobMate and can help with:
 
 🏗️ **Estimating** — Room-level estimates with line items, markups, and localized pricing
 📐 **Blueprint Takeoff** — Area/linear measurements from plans

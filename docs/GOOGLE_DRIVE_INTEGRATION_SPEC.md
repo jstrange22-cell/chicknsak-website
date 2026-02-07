@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-Google Drive API v3 allows third-party apps to upload, organize, and share files in a user's Google Drive. For ProjectWorks, this integration would enable automatic photo/document backup, per-project folder organization, and file sharing with collaborators.
+Google Drive API v3 allows third-party apps to upload, organize, and share files in a user's Google Drive. For JobMate, this integration would enable automatic photo/document backup, per-project folder organization, and file sharing with collaborators.
 
 ---
 
@@ -28,13 +28,13 @@ Google Drive API v3 allows third-party apps to upload, organize, and share files
 - **Token lifetime:** Access tokens expire in 1 hour; refresh tokens persist until revoked
 - **Google Cloud Console:** Must create OAuth 2.0 credentials and configure consent screen
 
-### 2.3 OAuth Flow for ProjectWorks
+### 2.3 OAuth Flow for JobMate
 1. User clicks "Connect Google Drive" in Settings > Integrations
 2. Redirect to Google consent screen requesting `drive.file` scope
 3. User grants access, redirected back with authorization code
 4. Exchange code for access + refresh tokens via Supabase edge function
 5. Store encrypted tokens in Firestore (`integrations/{companyId}/google-drive`)
-6. Auto-create "ProjectWorks" root folder in user's Drive
+6. Auto-create "JobMate" root folder in user's Drive
 
 ---
 
@@ -46,7 +46,7 @@ POST /drive/v3/files  (with mimeType: application/vnd.google-apps.folder)
 ```
 - Auto-create folder structure:
   ```
-  ProjectWorks/
+  JobMate/
     ├── {Project Name}/
     │   ├── Photos/
     │   │   ├── Before/
@@ -76,7 +76,7 @@ GET /drive/v3/files/{fileId}?alt=media
 GET /drive/v3/files/{fileId}?fields=webViewLink,webContentLink
 ```
 - Generate shareable links for files
-- Download files back to ProjectWorks if needed
+- Download files back to JobMate if needed
 - `webViewLink` opens in Google Drive viewer
 - `webContentLink` provides direct download
 
@@ -128,7 +128,7 @@ gapi.load('picker', () => {
   picker.setVisible(true);
 });
 ```
-- Useful for importing existing documents/photos from Drive into ProjectWorks
+- Useful for importing existing documents/photos from Drive into JobMate
 
 ---
 
@@ -191,7 +191,7 @@ POST /drive/v3/changes/watch  (watch for any changes)
 ### 7.2 Practical Considerations
 - Webhook channels expire and need renewal (cron job or scheduled function)
 - Notifications are "something changed" signals -- you still need to poll for details
-- For ProjectWorks, one-way push (ProjectWorks -> Drive) may be simpler initially
+- For JobMate, one-way push (JobMate -> Drive) may be simpler initially
 
 ---
 
@@ -202,7 +202,7 @@ POST /drive/v3/changes/watch  (watch for any changes)
 2. Create Supabase edge function `google-drive-auth` for OAuth flow
 3. Add Google Drive connection UI to IntegrationSettings (replace "coming soon")
 4. Store encrypted tokens in Firestore
-5. Auto-create "ProjectWorks" root folder on first connect
+5. Auto-create "JobMate" root folder on first connect
 
 ### Phase 2: Photo Backup (Auto-Push)
 1. Create Supabase edge function `google-drive-sync`
@@ -221,19 +221,19 @@ POST /drive/v3/changes/watch  (watch for any changes)
 ### Phase 4: Collaboration
 1. Share project folders with collaborators (customers, subs)
 2. Generate shareable links for project documentation
-3. Sync file permissions with ProjectWorks collaborator roles
+3. Sync file permissions with JobMate collaborator roles
 
 ---
 
 ## 9. Data Mapping
 
-| ProjectWorks Entity | Google Drive Location | Sync Direction |
+| JobMate Entity | Google Drive Location | Sync Direction |
 |---------------------|-----------------------|----------------|
-| Project Photos | ProjectWorks/{Project}/Photos/{type}/ | Push to Drive |
-| Reports (PDF) | ProjectWorks/{Project}/Reports/ | Push to Drive |
-| Checklists (PDF) | ProjectWorks/{Project}/Checklists/ | Push to Drive |
-| Uploaded Documents | ProjectWorks/{Project}/Documents/ | Push to Drive |
-| External Documents | Drive (via Picker) | Pull to ProjectWorks |
+| Project Photos | JobMate/{Project}/Photos/{type}/ | Push to Drive |
+| Reports (PDF) | JobMate/{Project}/Reports/ | Push to Drive |
+| Checklists (PDF) | JobMate/{Project}/Checklists/ | Push to Drive |
+| Uploaded Documents | JobMate/{Project}/Documents/ | Push to Drive |
+| External Documents | Drive (via Picker) | Pull to JobMate |
 
 ---
 

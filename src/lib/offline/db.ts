@@ -31,7 +31,7 @@ class OfflineDatabase extends Dexie {
   actions!: Table<OfflineAction>;
 
   constructor() {
-    super('structureworks-field');
+    super('jobmate');
     this.version(1).stores({
       photos: 'id, projectId, status, createdAt',
       actions: 'id, type, status, createdAt',

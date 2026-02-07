@@ -1,6 +1,6 @@
 {
-  "name": "structureworks-field-functions",
-  "description": "Firebase Cloud Functions for ProjectWorks (JobTread integration, sync queue, webhooks)",
+  "name": "jobmate-functions",
+  "description": "Firebase Cloud Functions for JobMate (JobTread integration, sync queue, webhooks)",
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",

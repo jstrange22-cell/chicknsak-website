@@ -38,7 +38,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
   const { data: unreadCount = 0 } = useUnreadCount(user?.uid);
 
   const isHome = location.pathname === '/';
-  const pageTitle = pageTitles[location.pathname] || 'ProjectWorks';
+  const pageTitle = pageTitles[location.pathname] || 'JobMate';
 
   return (
     <header
@@ -78,7 +78,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
                 <HardHat className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
               </div>
               <span className="text-lg font-bold tracking-tight text-white">
-                ProjectWorks
+                JobMate
               </span>
             </div>
           ) : (

@@ -1,4 +1,4 @@
-// JobTread <-> ProjectWorks Sync Engine
+// JobTread <-> JobMate Sync Engine
 // Handles bidirectional sync between JobTread jobs and Firestore projects.
 
 import {
@@ -38,7 +38,7 @@ export interface BatchPhotoSyncConfig {
 // ---------------------------------------------------------------------------
 
 /**
- * JobTread status → ProjectWorks status mapping.
+ * JobTread status → JobMate status mapping.
  *
  * JobTread uses three statuses:
  *   - "CREATED"  → the job exists but hasn't been approved by the customer yet → **lead**
@@ -89,7 +89,7 @@ export async function syncJobsToProjects(
   }
 
   // Paginate through ALL jobs instead of just the first 100.
-  // This ensures archived projects in ProjectWorks don't consume slots
+  // This ensures archived projects in JobMate don't consume slots
   // that prevent new/active JobTread jobs from syncing.
   const jobs = await client.getAllJobs();
 
@@ -109,7 +109,7 @@ export async function syncJobsToProjects(
       );
       const existing = await getDocs(existingQuery);
 
-      // Skip projects that were manually archived in ProjectWorks.
+      // Skip projects that were manually archived in JobMate.
       // This prevents sync from overwriting a user's decision AND frees up
       // slots in the 100-job sync limit for legitimate active jobs.
       if (!existing.empty) {
@@ -127,7 +127,7 @@ export async function syncJobsToProjects(
       // We build separate data objects for create vs update because:
       // - On CREATE: set the mapped status from JobTread
       // - On UPDATE: do NOT overwrite status — the user may have manually
-      //   changed it in ProjectWorks (e.g. moved a "lead" to "active")
+      //   changed it in JobMate (e.g. moved a "lead" to "active")
       const baseData: Record<string, unknown> = {
         companyId,
         name: job.name || 'Untitled Job',
@@ -181,7 +181,7 @@ export async function syncJobsToProjects(
 // ---------------------------------------------------------------------------
 
 /**
- * Upload a photo from ProjectWorks storage to a linked JobTread job.
+ * Upload a photo from JobMate storage to a linked JobTread job.
  */
 export async function syncPhotoToJobTread(
   client: JobTreadClient,
@@ -200,11 +200,11 @@ export async function syncPhotoToJobTread(
 }
 
 // ---------------------------------------------------------------------------
-// Push: Create a job in JobTread from a ProjectWorks project
+// Push: Create a job in JobTread from a JobMate project
 // ---------------------------------------------------------------------------
 
 /**
- * When a project is created in ProjectWorks, push it to JobTread as a new
+ * When a project is created in JobMate, push it to JobTread as a new
  * job with the project's name and description.
  *
  * Note: The JobTread createJob mutation only accepts name, description, and
@@ -238,7 +238,7 @@ export async function syncProjectToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * Upload every photo in a ProjectWorks project that hasn't been synced to
+ * Upload every photo in a JobMate project that hasn't been synced to
  * the linked JobTread job yet.
  *
  * A photo is considered un-synced when `metadata.jobtreadFileId` is not set.
@@ -324,7 +324,7 @@ export async function syncAllPhotosToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * When a photo is annotated or its tags change in ProjectWorks, push the
+ * When a photo is annotated or its tags change in JobMate, push the
  * updated data to the corresponding JobTread file.
  *
  * - If the photo has an `annotatedUrl`, the file name in JobTread is updated
@@ -388,10 +388,10 @@ export async function syncFileEditToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * Sync ProjectWorks tags to the files on a JobTread job, matching by tag
+ * Sync JobMate tags to the files on a JobTread job, matching by tag
  * name. For every file in the JobTread job, look up the corresponding
  * Firestore photo (via `metadata.jobtreadFileId`) and push the current set
- * of tag names from ProjectWorks to JobTread.
+ * of tag names from JobMate to JobTread.
  */
 export async function syncTagsToJobTread(
   client: JobTreadClient,
@@ -450,7 +450,7 @@ export async function syncTagsToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the number of photos in a ProjectWorks project that have not yet
+ * Returns the number of photos in a JobMate project that have not yet
  * been synced to JobTread (i.e. missing `metadata.jobtreadFileId`).
  */
 export async function getUnsyncedPhotoCount(projectId: string): Promise<number> {

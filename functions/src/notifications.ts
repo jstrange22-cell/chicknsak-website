@@ -1,5 +1,5 @@
 /**
- * Push Notification Cloud Functions for ProjectWorks
+ * Push Notification Cloud Functions for JobMate
  *
  * Firestore-triggered function that sends FCM push notifications
  * when new messages are created in channels.
