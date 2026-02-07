@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* Custom CSS Variables for StructureWorks Field */
+:root {
+  --color-primary: #0f172a;
+  --color-accent: #3B82F6;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-background: #f8fafc;
+  
+  /* Radius */
+  --radius-card: 12px;
+  --radius-button: 8px;
+  
+  /* Touch targets */
+  --min-touch-target: 48px;
+}
+
+/* Base Styles — NOTE: Do NOT add a universal * reset for margin/padding here.
+   TailwindCSS 4 uses @layer internally, and unlayered rules override layered
+   utilities. Tailwind's Preflight already handles resets. */
+
+html {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-background);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Utility classes */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch action for better mobile experience */
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+/* Pull to refresh support */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
