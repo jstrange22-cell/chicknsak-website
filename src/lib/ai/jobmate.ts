@@ -342,6 +342,14 @@ function getGenAI(): GoogleGenerativeAI | null {
   return _genAI;
 }
 
+// Models to try in order — if one hits quota or is unavailable, fall through to the next
+const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+];
+
 async function callGemini(
   systemPrompt: string,
   conversationHistory: ChatMessagePayload[],
@@ -350,22 +358,148 @@ async function callGemini(
   const genAI = getGenAI();
   if (!genAI) throw new Error('Gemini API key not configured');
 
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    systemInstruction: systemPrompt,
-  });
-
   // Build chat history (last 20 messages for context window)
   const history = conversationHistory.slice(-20).map((msg) => ({
     role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
     parts: [{ text: msg.content }],
   }));
 
-  const chat = model.startChat({ history });
-  const result = await chat.sendMessage(userMessage);
-  const response = result.response;
+  let lastError: unknown;
 
-  return response.text() || 'I apologize, I could not generate a response.';
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      console.log(`[JobMate] Trying model: ${modelName}`);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+      });
+
+      const chat = model.startChat({ history });
+      const result = await chat.sendMessage(userMessage);
+      const response = result.response;
+      const text = response.text();
+
+      if (text) {
+        console.log(`[JobMate] Success with model: ${modelName}`);
+        return text;
+      }
+    } catch (err: unknown) {
+      lastError = err;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[JobMate] Model ${modelName} failed: ${errMsg.substring(0, 120)}`);
+
+      // If it's a 429 (quota) or 404 (model not found/deprecated), try next model
+      if (
+        errMsg.includes('429') || errMsg.toLowerCase().includes('quota') ||
+        errMsg.includes('404') || errMsg.toLowerCase().includes('not found')
+      ) {
+        continue;
+      }
+      // For other errors (auth, network, etc.), throw immediately
+      throw err;
+    }
+  }
+
+  // All models exhausted — throw the last error
+  throw lastError || new Error('All Gemini models failed');
+}
+
+// ---------------------------------------------------------------------------
+// OpenRouter Fallback (CORS-enabled, free models available)
+// ---------------------------------------------------------------------------
+
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
+
+// Free, high-quality models on OpenRouter (in priority order)
+const OPENROUTER_MODELS = [
+  'google/gemma-3-27b-it:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'qwen/qwen3-4b:free',
+];
+
+async function callOpenRouter(
+  systemPrompt: string,
+  conversationHistory: ChatMessagePayload[],
+  userMessage: string,
+): Promise<string> {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OpenRouter API key not configured');
+  }
+
+  // Build messages array in OpenAI-compatible format
+  const messages: Array<{ role: string; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  // Add conversation history (last 20 messages)
+  for (const msg of conversationHistory.slice(-20)) {
+    messages.push({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content,
+    });
+  }
+
+  messages.push({ role: 'user', content: userMessage });
+
+  let lastError: unknown;
+
+  for (const modelName of OPENROUTER_MODELS) {
+    try {
+      console.log(`[JobMate] Trying OpenRouter model: ${modelName}`);
+
+      const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'ProjectWorks JobMate',
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages,
+          max_tokens: 4096,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.text();
+        console.warn(`[JobMate] OpenRouter ${modelName} HTTP ${resp.status}: ${errBody.substring(0, 150)}`);
+        // Rate limit or model unavailable — try next
+        if (resp.status === 429 || resp.status === 503 || resp.status === 404) {
+          lastError = new Error(`OpenRouter ${resp.status}: ${errBody.substring(0, 100)}`);
+          continue;
+        }
+        throw new Error(`OpenRouter error ${resp.status}: ${errBody.substring(0, 200)}`);
+      }
+
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+
+      if (text) {
+        console.log(`[JobMate] Success with OpenRouter model: ${modelName}`);
+        return text;
+      }
+    } catch (err: unknown) {
+      lastError = err;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[JobMate] OpenRouter model ${modelName} failed: ${errMsg.substring(0, 120)}`);
+
+      // Network errors or unexpected issues — try next model
+      if (errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('404')) {
+        continue;
+      }
+      // Auth or other hard errors — stop trying
+      if (errMsg.includes('401') || errMsg.includes('403')) {
+        throw err;
+      }
+      continue;
+    }
+  }
+
+  throw lastError || new Error('All OpenRouter models failed');
 }
 
 // ---------------------------------------------------------------------------
@@ -456,9 +590,10 @@ export function resetMockCounters() {
 /**
  * Send a message to the JobMate AI assistant.
  *
- * Calls Google Gemini directly from the browser (CORS supported).
- * Falls back to mock responses only when the API key is missing or
- * the service is completely unreachable.
+ * Priority order:
+ * 1. Google Gemini (direct browser call — CORS supported)
+ * 2. OpenRouter (CORS-enabled, free models available)
+ * 3. Mock fallback (only when no API keys configured or all services down)
  */
 export async function sendJobMateMessage(
   request: JobMateChatRequest
@@ -486,27 +621,43 @@ export async function sendJobMateMessage(
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('[JobMate] Gemini direct call failed:', errMsg);
 
-      // If it's a quota/rate limit error, tell the user
-      if (errMsg.includes('429') || errMsg.toLowerCase().includes('quota')) {
-        return {
-          content: '⚠️ AI rate limit reached. Please wait a moment and try again.',
-          mode,
-        };
+      // If it's an auth error (bad API key), don't fall through — tell user
+      if (errMsg.includes('403') || errMsg.includes('401') || errMsg.toLowerCase().includes('api key')) {
+        // Still try OpenRouter before giving up
+        console.log('[JobMate] Gemini auth error, trying OpenRouter fallback...');
       }
 
-      // If it's an auth error (bad API key)
-      if (errMsg.includes('403') || errMsg.includes('401') || errMsg.toLowerCase().includes('api key')) {
-        return {
-          content: '⚠️ AI service configuration error. Please contact your administrator.',
-          mode,
-        };
-      }
+      // For quota / rate limit / model errors — try OpenRouter fallback
+      console.log('[JobMate] Gemini failed, trying OpenRouter fallback...');
     }
   } else {
-    console.warn('[JobMate] No VITE_GEMINI_API_KEY set — using mock responses');
+    console.warn('[JobMate] No VITE_GEMINI_API_KEY set — trying OpenRouter...');
   }
 
-  // --- Mock fallback — only reached when API key is missing or call failed ---
+  // --- Try OpenRouter fallback ---
+  if (OPENROUTER_API_KEY) {
+    try {
+      console.log(`[JobMate] Calling OpenRouter (mode: ${mode})`);
+      const content = await callOpenRouter(
+        systemPrompt,
+        request.conversationHistory,
+        request.message,
+      );
+
+      if (content) {
+        console.log(`[JobMate] OpenRouter responded successfully`);
+        return { content, mode };
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('[JobMate] OpenRouter call failed:', errMsg);
+    }
+  } else {
+    console.warn('[JobMate] No VITE_OPENROUTER_API_KEY set — using mock responses');
+  }
+
+  // --- Mock fallback — only reached when all API services failed ---
+  console.warn('[JobMate] All AI services failed, using mock response');
   const delay = 600 + Math.random() * 1000;
   await new Promise((resolve) => setTimeout(resolve, delay));
 
