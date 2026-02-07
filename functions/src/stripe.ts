@@ -1,5 +1,5 @@
 /**
- * Stripe Cloud Functions for ProjectWorks
+ * Stripe Cloud Functions for JobMate
  *
  * createCheckoutSession - Callable function that creates a Stripe Checkout Session
  * stripeWebhook        - HTTP endpoint that handles Stripe webhook events

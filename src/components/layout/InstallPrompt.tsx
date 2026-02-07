@@ -46,7 +46,7 @@ export function InstallPrompt() {
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white px-4 py-3 flex items-center gap-3 safe-area-top">
       <Download className="w-5 h-5 flex-shrink-0" />
-      <p className="text-sm flex-1">Install ProjectWorks for the best experience</p>
+      <p className="text-sm flex-1">Install JobMate for the best experience</p>
       <button
         onClick={handleInstall}
         className="px-3 py-1 bg-white text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50"

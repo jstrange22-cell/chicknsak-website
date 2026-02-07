@@ -1,4 +1,4 @@
-# ProjectWorks AI Construction Assistant -- Design Specification
+# JobMate AI Construction Assistant -- Design Specification
 
 **Version:** 1.0
 **Date:** 2026-02-07
@@ -15,7 +15,7 @@
 4. [Core Knowledge Domains](#4-core-knowledge-domains)
 5. [AI Assistant Capabilities](#5-ai-assistant-capabilities)
 6. [Conversation Modes and Routing](#6-conversation-modes-and-routing)
-7. [Integration Points with ProjectWorks](#7-integration-points-with-projectworks)
+7. [Integration Points with JobMate](#7-integration-points-with-jobmate)
 8. [Data Structures and Context Injection](#8-data-structures-and-context-injection)
 9. [Prompt Engineering Specifications](#9-prompt-engineering-specifications)
 10. [Safety, Disclaimers, and Guardrails](#10-safety-disclaimers-and-guardrails)
@@ -26,7 +26,7 @@
 
 ## 1. Executive Summary
 
-This document specifies the design for ProjectWorks' AI Construction Assistant -- a conversational AI that serves as an expert general contractor, estimator, architect, designer, tradesman, and code official. The assistant is embedded in the existing `AIChatPage.tsx` and will replace the current mock response system with a live AI backend.
+This document specifies the design for JobMate' AI Construction Assistant -- a conversational AI that serves as an expert general contractor, estimator, architect, designer, tradesman, and code official. The assistant is embedded in the existing `AIChatPage.tsx` and will replace the current mock response system with a live AI backend.
 
 The assistant is designed to be the single most useful tool a construction professional interacts with daily. It must understand the full lifecycle of construction projects: from initial design and estimating, through permitting, scheduling, and field execution, to closeout and warranty. It must speak the language of the trades, understand code compliance, and produce actionable outputs (estimates, scopes of work, checklists, RFIs) -- not just informational answers.
 
@@ -34,7 +34,7 @@ The assistant is designed to be the single most useful tool a construction profe
 
 - **Practitioner-first language**: Speak like someone who has been on jobsites, not an academic. Use trade terminology naturally.
 - **Actionable outputs**: Every answer should move the user toward a decision or deliverable. Provide numbers, code references, and structured documents rather than vague guidance.
-- **Context-aware**: Leverage the user's current project data, photos, checklists, and reports from ProjectWorks to give specific rather than generic answers.
+- **Context-aware**: Leverage the user's current project data, photos, checklists, and reports from JobMate to give specific rather than generic answers.
 - **Safety-conscious**: Always highlight safety considerations, code requirements, and when professional engineering or legal counsel is required.
 - **Regional awareness**: Construction costs, codes, and practices vary dramatically by location. The assistant must account for regional differences.
 
@@ -117,7 +117,7 @@ Layer 5: OUTPUT FORMAT INSTRUCTIONS (based on request type)
 ### 3.2 Layer 0 -- Identity and Persona
 
 ```
-You are the ProjectWorks AI Construction Assistant. You are a seasoned construction
+You are the JobMate AI Construction Assistant. You are a seasoned construction
 professional with 30+ years of experience spanning general contracting, estimating,
 architectural design, and all major trades. You hold a general contractor's license,
 have worked as a certified building inspector, and have hands-on experience as an
@@ -129,7 +129,7 @@ SF, CY, GC, sub, CO, RFI, submittal, punchlist). When a user asks a question, yo
 consider the practical realities of the jobsite: weather, material lead times, crew
 availability, inspector schedules, and budget constraints.
 
-You are integrated into ProjectWorks, a construction project management application.
+You are integrated into JobMate, a construction project management application.
 When the user has a project selected, you have access to their project data including
 photos, checklists, tasks, documents, and reports. Reference this data when relevant.
 
@@ -170,7 +170,7 @@ Appended based on detected request type. Examples:
 - Estimate request: "Format your response as a structured cost estimate with line items, quantities, unit costs, and totals. Include a summary with subtotal, overhead, profit, and total."
 - Code question: "Cite the specific code section, edition, and year. Include the exact language where possible and note common local amendments."
 - Scope of work: "Format as a professional scope of work document with numbered sections."
-- Checklist: "Return a structured checklist in JSON format compatible with the ProjectWorks checklist schema."
+- Checklist: "Return a structured checklist in JSON format compatible with the JobMate checklist schema."
 
 ---
 
@@ -621,7 +621,7 @@ PROJECT ESTIMATE
 Project: [Name]
 Location: [City, State]
 Date: [Date]
-Prepared by: ProjectWorks AI (Preliminary)
+Prepared by: JobMate AI (Preliminary)
 
 SUMMARY
 ---------------------------------------------
@@ -793,7 +793,7 @@ The AI should generate:
 - Hot work permits
 - Confined space entry checklists
 
-These should be in the ProjectWorks checklist format (compatible with `ChecklistTemplate` type in the app).
+These should be in the JobMate checklist format (compatible with `ChecklistTemplate` type in the app).
 
 ### 5.11 Additional Capabilities
 
@@ -899,7 +899,7 @@ You are now in Safety mode. Always:
 
 ---
 
-## 7. Integration Points with ProjectWorks
+## 7. Integration Points with JobMate
 
 ### 7.1 Project Context Integration
 
@@ -971,11 +971,11 @@ Allow users to reference project photos in the chat. The AI should be able to:
 - When a photo is attached, include it in the API call as a multimodal input
 - Display photo thumbnails inline in the chat thread
 
-### 7.3 Actionable Outputs that Write Back to ProjectWorks
+### 7.3 Actionable Outputs that Write Back to JobMate
 
-When the AI generates structured outputs, offer the user a one-click action to create the corresponding entity in ProjectWorks:
+When the AI generates structured outputs, offer the user a one-click action to create the corresponding entity in JobMate:
 
-| AI Output | ProjectWorks Action | Target Entity |
+| AI Output | JobMate Action | Target Entity |
 |-----------|-------------------|---------------|
 | Checklist | "Save as Checklist" | `Checklist` / `ChecklistTemplate` |
 | Punch list | "Save as Task List" | Multiple `Task` entities |
@@ -1220,11 +1220,11 @@ The AI should refuse or redirect in these cases:
 Every conversation session should include (either in the system prompt or displayed in the UI):
 
 ```
-ProjectWorks AI provides general construction guidance based on common industry
+JobMate AI provides general construction guidance based on common industry
 practices and standard building codes. It is not a substitute for professional
 engineering, architectural, or legal advice. Users are responsible for verifying
 all information with qualified professionals and local authorities before
-proceeding with any construction work. ProjectWorks assumes no liability for
+proceeding with any construction work. JobMate assumes no liability for
 decisions made based on AI responses.
 ```
 
@@ -1331,7 +1331,7 @@ interface AIConversation extends BaseDocument {
 
 ### 11.5 Offline Considerations
 
-Since ProjectWorks has offline support (evidenced by `src/lib/offline/`):
+Since JobMate has offline support (evidenced by `src/lib/offline/`):
 - Cache the system prompt layers locally
 - Queue messages for sending when connectivity returns
 - Consider a lightweight on-device model for basic questions (future)
@@ -1429,7 +1429,7 @@ Consider implementing a knowledge base version system and update cadence (quarte
 
 ## Appendix B: Competitive Analysis Notes
 
-The following features differentiate ProjectWorks AI from generic chatbots and competing construction apps:
+The following features differentiate JobMate AI from generic chatbots and competing construction apps:
 
 1. **Deep project context**: Unlike ChatGPT or generic AI, this assistant knows the user's actual project data
 2. **Actionable outputs**: Generates checklists, scopes, estimates that save directly to the app

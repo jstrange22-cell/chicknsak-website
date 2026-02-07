@@ -52,17 +52,17 @@ const SYNC_STEPS = [
   {
     title: 'Project Creation Sync',
     description:
-      'Creating a project in ProjectWorks automatically syncs it to JobTread as a new job with contact info, location, and GPS coordinates.',
+      'Creating a project in JobMate automatically syncs it to JobTread as a new job with contact info, location, and GPS coordinates.',
   },
   {
     title: 'File Push to JobTread',
     description:
-      'All photos, documents, and videos uploaded in ProjectWorks are automatically pushed to the corresponding JobTread job files.',
+      'All photos, documents, and videos uploaded in JobMate are automatically pushed to the corresponding JobTread job files.',
   },
   {
     title: 'Edit Sync',
     description:
-      'File edits such as annotations and tag changes made in ProjectWorks are automatically updated in JobTread.',
+      'File edits such as annotations and tag changes made in JobMate are automatically updated in JobTread.',
   },
   {
     title: 'Tag Matching',
@@ -461,7 +461,7 @@ export default function JobTreadConnect() {
                   id="jt-default-tag"
                   value={defaultFileTag}
                   onChange={(e) => setDefaultFileTag(e.target.value)}
-                  placeholder="e.g. ProjectWorks"
+                  placeholder="e.g. JobMate"
                 />
                 <p className="text-xs text-slate-400">
                   A tag automatically applied to every file synced to JobTread.
@@ -604,7 +604,7 @@ export default function JobTreadConnect() {
             <p className="text-sm text-slate-500">
               Connect your JobTread account to automatically sync projects, push
               photos and documents, and keep file tags in sync between
-              ProjectWorks and JobTread.
+              JobMate and JobTread.
             </p>
 
             {/* API Key input form */}

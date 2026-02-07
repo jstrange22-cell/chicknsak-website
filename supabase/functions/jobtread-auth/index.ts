@@ -1,6 +1,6 @@
 // JobTread OAuth2 Authorization Edge Function
 //
-// Handles the two-step OAuth2 flow for connecting a ProjectWorks
+// Handles the two-step OAuth2 flow for connecting a JobMate
 // company to their JobTread account.
 //
 // Actions:

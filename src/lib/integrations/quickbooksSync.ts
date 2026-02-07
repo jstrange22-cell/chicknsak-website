@@ -1,6 +1,6 @@
 // QuickBooks Online Sync Service
 //
-// Handles syncing data between ProjectWorks and QuickBooks Online.
+// Handles syncing data between JobMate and QuickBooks Online.
 // Uses a Firebase Cloud Function as a proxy to avoid exposing QBO
 // credentials in the browser.
 

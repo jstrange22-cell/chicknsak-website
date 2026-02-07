@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.structureworks.field',
-  appName: 'ProjectWorks',
+  appId: 'com.jobmate.app',
+  appName: 'JobMate',
   webDir: 'dist',
   server: {
     androidScheme: 'https'
