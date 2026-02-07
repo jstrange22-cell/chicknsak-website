@@ -14,23 +14,23 @@
   RewriteRule ^(.*)$ /index.html [L]
 </IfModule>
 
-# Cache Control
+# Cache Control - ORDER MATTERS: specific rules AFTER general rules
 <IfModule mod_headers.c>
-  # Never cache index.html or service worker (always check for updates)
-  <FilesMatch "^(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
-  </FilesMatch>
-
-  # Cache hashed assets for 1 year (they have unique hashes)
-  <FilesMatch "\.(js|css)$">
+  # Cache hashed assets in /assets/ for 1 year (they have unique hashes)
+  <FilesMatch "^assets/.+\.(js|css)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 
   # Cache images and fonts for 30 days
   <FilesMatch "\.(ico|png|jpg|jpeg|gif|svg|woff2|woff|ttf)$">
     Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+
+  # CRITICAL: Never cache these files (must come LAST to override)
+  <FilesMatch "^(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
   </FilesMatch>
 </IfModule>
 
