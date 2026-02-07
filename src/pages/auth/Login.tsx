@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthContext } from '@/components/auth/AuthProvider';
-import { HardHat } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -53,14 +52,16 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Logo icon */}
-        <div className="mx-auto w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mb-4">
-          <HardHat className="h-7 w-7 text-white" strokeWidth={1.75} />
-        </div>
+        {/* Logo */}
+        <img
+          src="/img/logo-light.png"
+          alt="ProjectWorks"
+          className="mx-auto h-20 w-20 object-contain mb-2"
+        />
 
         {/* Brand name */}
         <h1 className="text-2xl font-bold text-slate-900 text-center mb-8">
-          JobMate
+          ProjectWorks
         </h1>
 
         {/* Login form */}

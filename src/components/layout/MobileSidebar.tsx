@@ -17,7 +17,6 @@ import {
   Settings,
   Shield,
   LogOut,
-  HardHat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/components/auth/AuthProvider';
@@ -115,12 +114,14 @@ export function MobileSidebar({ isOpen, onClose, unreadCount = 0 }: MobileSideba
       >
         {/* Header: Logo + Close */}
         <div className="flex h-16 items-center justify-between px-4 border-b border-slate-800/60">
-          <NavLink to="/" onClick={onClose} className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 shadow-sm shadow-blue-500/30">
-              <HardHat className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
-            </div>
+          <NavLink to="/" onClick={onClose} className="flex items-center gap-2">
+            <img
+              src="/img/logo-dark.png"
+              alt="ProjectWorks"
+              className="h-9 w-9 rounded-lg object-contain"
+            />
             <span className="text-lg font-bold tracking-tight text-white">
-              JobMate
+              ProjectWorks
             </span>
           </NavLink>
           <button

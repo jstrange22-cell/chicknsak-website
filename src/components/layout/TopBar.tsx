@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, User, HardHat, Menu } from 'lucide-react';
+import { Bell, User, Menu } from 'lucide-react';
 import { useAuthContext } from '@/components/auth/AuthProvider';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { cn, getInitials } from '@/lib/utils';
@@ -73,12 +73,14 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
 
           {/* Logo on home, page title on sub-pages */}
           {isHome ? (
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 shadow-sm shadow-blue-500/30">
-                <HardHat className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
-              </div>
+            <div className="flex items-center gap-1.5">
+              <img
+                src="/img/logo-dark.png"
+                alt="ProjectWorks"
+                className="h-9 w-9 rounded-lg object-contain"
+              />
               <span className="text-lg font-bold tracking-tight text-white">
-                JobMate
+                ProjectWorks
               </span>
             </div>
           ) : (

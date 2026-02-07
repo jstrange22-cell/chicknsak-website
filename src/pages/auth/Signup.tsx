@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthContext } from '@/components/auth/AuthProvider';
-import { HardHat } from 'lucide-react';
 
 const signupSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -58,11 +57,13 @@ export default function Signup() {
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="w-full max-w-md px-8">
         {/* Logo */}
-        <div className="mx-auto w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mb-4">
-          <HardHat className="h-7 w-7 text-white" strokeWidth={1.75} />
-        </div>
+        <img
+          src="/img/logo-light.png"
+          alt="ProjectWorks"
+          className="mx-auto h-20 w-20 object-contain mb-2"
+        />
         <h1 className="text-2xl font-bold text-slate-900 text-center mb-8">
-          JobMate
+          ProjectWorks
         </h1>
 
         {/* Signup form */}

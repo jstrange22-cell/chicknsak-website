@@ -16,7 +16,6 @@ import {
   LogOut,
   MessageCircle,
   MessageSquare,
-  HardHat,
   PlusCircle,
   Bell,
   Search,
@@ -127,9 +126,11 @@ export function DesktopSidebar() {
       <div className="flex h-12 items-center justify-between px-3 border-b border-slate-800/60">
         {/* Logo */}
         <NavLink to="/" className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-500">
-            <HardHat className="h-4 w-4 text-white" strokeWidth={2.2} />
-          </div>
+          <img
+            src="/img/logo-dark.png"
+            alt="ProjectWorks"
+            className="h-7 w-7 rounded-md object-contain"
+          />
         </NavLink>
 
         {/* Action icons */}
