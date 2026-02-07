@@ -12,6 +12,8 @@ import {
   Trash2,
   Clock,
   Activity,
+  Key,
+  AlertCircle,
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -20,6 +22,7 @@ import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import {
   useIntegration,
+  useConnectIntegration,
   useDisconnectIntegration,
   useUpdateSyncTimestamp,
   useSyncQueue,
@@ -32,9 +35,6 @@ import { formatRelativeTime } from '@/lib/utils';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const FIREBASE_AUTH_URL =
-  'https://us-central1-projectworks-8b692.cloudfunctions.net/jobtreadAuth';
 
 /** Predefined folder options for the JobTread default folder setting. */
 const FOLDER_OPTIONS = [
@@ -52,17 +52,17 @@ const SYNC_STEPS = [
   {
     title: 'Project Creation Sync',
     description:
-      'Creating a project in StructureWorks automatically syncs it to JobTread as a new job with contact info, location, and GPS coordinates.',
+      'Creating a project in ProjectWorks automatically syncs it to JobTread as a new job with contact info, location, and GPS coordinates.',
   },
   {
     title: 'File Push to JobTread',
     description:
-      'All photos, documents, and videos uploaded in StructureWorks are automatically pushed to the corresponding JobTread job files.',
+      'All photos, documents, and videos uploaded in ProjectWorks are automatically pushed to the corresponding JobTread job files.',
   },
   {
     title: 'Edit Sync',
     description:
-      'File edits such as annotations and tag changes made in StructureWorks are automatically updated in JobTread.',
+      'File edits such as annotations and tag changes made in ProjectWorks are automatically updated in JobTread.',
   },
   {
     title: 'Tag Matching',
@@ -72,28 +72,28 @@ const SYNC_STEPS = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getAuthorizeUrl(companyId: string): string {
-  return `${FIREBASE_AUTH_URL}?action=authorize&companyId=${encodeURIComponent(companyId)}`;
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function JobTreadConnect() {
   const { profile } = useAuthContext();
   const integration = useIntegration('jobtread');
+  const connectMutation = useConnectIntegration();
   const disconnectMutation = useDisconnectIntegration();
   const updateSyncTimestamp = useUpdateSyncTimestamp();
   const { data: syncQueue } = useSyncQueue();
 
+  // API key connect state
+  const [apiKey, setApiKey] = useState('');
+  const [isTesting, setIsTesting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
+  // Sync state
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     created: number;
     updated: number;
+    skipped: number;
     errors: Array<{ jobId: string; message: string }>;
   } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -103,6 +103,9 @@ export default function JobTreadConnect() {
   const [defaultFileTag, setDefaultFileTag] = useState<string>('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
+
+  // Reconnect state (show API key input again to replace existing key)
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   const isConnected = !!integration?.isActive;
 
@@ -134,15 +137,66 @@ export default function JobTreadConnect() {
   // Handlers
   // -----------------------------------------------------------------------
 
-  const handleConnect = useCallback(() => {
-    if (!profile?.companyId) return;
-    window.location.href = getAuthorizeUrl(profile.companyId);
-  }, [profile?.companyId]);
+  /**
+   * Test the API key against JobTread and, if valid, store it via
+   * useConnectIntegration (which writes to Firestore).
+   */
+  const handleTestAndConnect = useCallback(async () => {
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) {
+      setConnectError('Please enter an API key.');
+      return;
+    }
+
+    setIsTesting(true);
+    setConnectError(null);
+
+    try {
+      // 1. Test the key by making a lightweight API call
+      const client = new JobTreadClient(trimmedKey);
+      await client.testConnection();
+
+      // 2. Key is valid -- save to Firestore via the connect mutation
+      await connectMutation.mutateAsync({
+        provider: 'jobtread',
+        accessToken: trimmedKey,
+      });
+
+      // 3. Reset local state
+      setApiKey('');
+      setIsReconnecting(false);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to connect to JobTread';
+
+      // Provide a friendlier message for common HTTP errors
+      if (message.includes('401') || message.includes('403')) {
+        setConnectError(
+          'Invalid API key. Please check that you copied the full grant key from JobTread.'
+        );
+      } else if (message.includes('Network error')) {
+        setConnectError(
+          'Could not reach JobTread. Please check your internet connection and try again.'
+        );
+      } else {
+        setConnectError(message);
+      }
+    } finally {
+      setIsTesting(false);
+    }
+  }, [apiKey, connectMutation]);
 
   const handleReconnect = useCallback(() => {
-    if (!profile?.companyId) return;
-    window.location.href = getAuthorizeUrl(profile.companyId);
-  }, [profile?.companyId]);
+    setIsReconnecting(true);
+    setConnectError(null);
+    setApiKey('');
+  }, []);
+
+  const handleCancelReconnect = useCallback(() => {
+    setIsReconnecting(false);
+    setConnectError(null);
+    setApiKey('');
+  }, []);
 
   const handleDisconnect = useCallback(async () => {
     if (!integration?.id) return;
@@ -150,13 +204,25 @@ export default function JobTreadConnect() {
       await disconnectMutation.mutateAsync(integration.id);
       setSyncResult(null);
       setSyncError(null);
+      setIsReconnecting(false);
     } catch (err) {
       console.error('Failed to disconnect JobTread:', err);
     }
   }, [integration?.id, disconnectMutation]);
 
   const handleSyncNow = useCallback(async () => {
-    if (!integration?.accessToken || !profile?.companyId || !integration.id) return;
+    if (!integration?.accessToken) {
+      setSyncError('No API key found. Please reconnect your JobTread account.');
+      return;
+    }
+    if (!profile?.companyId) {
+      setSyncError('No company found. Please sign out and sign back in.');
+      return;
+    }
+    if (!integration.id) {
+      setSyncError('Integration record not found. Please reconnect.');
+      return;
+    }
 
     setIsSyncing(true);
     setSyncResult(null);
@@ -200,6 +266,89 @@ export default function JobTreadConnect() {
   }, [integration?.id, defaultFolder, defaultFileTag]);
 
   // -----------------------------------------------------------------------
+  // Shared UI fragments
+  // -----------------------------------------------------------------------
+
+  /** The "How the Integration Works" panel used in both states. */
+  const howItWorksPanel = (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <Info className="h-4 w-4" />
+        How the Integration Works
+      </h4>
+      <ol className="space-y-3">
+        {SYNC_STEPS.map((step, idx) => (
+          <li key={idx} className="flex gap-3 text-sm">
+            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">
+              {idx + 1}
+            </span>
+            <div>
+              <p className="font-medium text-slate-700">{step.title}</p>
+              <p className="text-slate-500">{step.description}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+
+  /** The API key input form used for initial connect and reconnect. */
+  const apiKeyForm = (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <label
+          htmlFor="jt-api-key"
+          className="flex items-center gap-1.5 text-sm font-medium text-slate-600"
+        >
+          <Key className="h-3.5 w-3.5" />
+          JobTread API Key (Grant)
+        </label>
+        <Input
+          id="jt-api-key"
+          type="password"
+          value={apiKey}
+          onChange={(e) => {
+            setApiKey(e.target.value);
+            setConnectError(null);
+          }}
+          placeholder="Paste your JobTread grant key here"
+          autoComplete="off"
+        />
+        <p className="text-xs text-slate-400">
+          Generate a grant key in your JobTread account under Settings &gt; API
+          &gt; Grants.
+        </p>
+      </div>
+
+      {/* Connection error */}
+      {connectError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <p>{connectError}</p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          onClick={handleTestAndConnect}
+          disabled={isTesting || !apiKey.trim()}
+          isLoading={isTesting}
+        >
+          {!isTesting && <Link2 className="h-4 w-4" />}
+          {isTesting ? 'Testing...' : 'Test & Connect'}
+        </Button>
+
+        {isReconnecting && (
+          <Button variant="outline" size="sm" onClick={handleCancelReconnect}>
+            Cancel
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
+  // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
 
@@ -239,6 +388,16 @@ export default function JobTreadConnect() {
       <CardContent>
         {isConnected ? (
           <div className="space-y-6">
+            {/* ---- Reconnect form (shown inline when reconnecting) ---- */}
+            {isReconnecting && (
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <h4 className="mb-3 text-sm font-semibold text-orange-700">
+                  Reconnect with a new API key
+                </h4>
+                {apiKeyForm}
+              </div>
+            )}
+
             {/* ---- Sync Statistics ---- */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -302,7 +461,7 @@ export default function JobTreadConnect() {
                   id="jt-default-tag"
                   value={defaultFileTag}
                   onChange={(e) => setDefaultFileTag(e.target.value)}
-                  placeholder="e.g. StructureWorks"
+                  placeholder="e.g. ProjectWorks"
                 />
                 <p className="text-xs text-slate-400">
                   A tag automatically applied to every file synced to JobTread.
@@ -328,18 +487,40 @@ export default function JobTreadConnect() {
 
             {/* ---- Sync result feedback ---- */}
             {syncResult && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+              <div className={`rounded-lg border p-3 text-sm ${syncResult.errors.length > 0 ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
                 <p className="font-medium">Sync complete</p>
                 <p>
                   {syncResult.created} project{syncResult.created !== 1 ? 's' : ''} created,{' '}
                   {syncResult.updated} updated
+                  {syncResult.skipped > 0 && (
+                    <span className="text-slate-500">
+                      , {syncResult.skipped} archived (skipped)
+                    </span>
+                  )}
                   {syncResult.errors.length > 0 && (
-                    <span className="text-amber-700">
+                    <span className="text-red-700">
                       , {syncResult.errors.length} error
                       {syncResult.errors.length !== 1 ? 's' : ''}
                     </span>
                   )}
                 </p>
+                {syncResult.errors.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-medium text-amber-700 hover:text-amber-900">
+                      Show error details ({syncResult.errors.length})
+                    </summary>
+                    <ul className="mt-1 max-h-40 overflow-y-auto space-y-1 text-xs text-red-700">
+                      {syncResult.errors.slice(0, 10).map((e, i) => (
+                        <li key={i} className="truncate">
+                          Job {e.jobId}: {e.message}
+                        </li>
+                      ))}
+                      {syncResult.errors.length > 10 && (
+                        <li className="italic">...and {syncResult.errors.length - 10} more</li>
+                      )}
+                    </ul>
+                  </details>
+                )}
               </div>
             )}
 
@@ -423,34 +604,14 @@ export default function JobTreadConnect() {
             <p className="text-sm text-slate-500">
               Connect your JobTread account to automatically sync projects, push
               photos and documents, and keep file tags in sync between
-              StructureWorks and JobTread.
+              ProjectWorks and JobTread.
             </p>
 
-            {/* How the Integration Works (shown before connecting too) */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Info className="h-4 w-4" />
-                How the Integration Works
-              </h4>
-              <ol className="space-y-3">
-                {SYNC_STEPS.map((step, idx) => (
-                  <li key={idx} className="flex gap-3 text-sm">
-                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">
-                      {idx + 1}
-                    </span>
-                    <div>
-                      <p className="font-medium text-slate-700">{step.title}</p>
-                      <p className="text-slate-500">{step.description}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            {/* API Key input form */}
+            {apiKeyForm}
 
-            <Button onClick={handleConnect} size="sm">
-              <Link2 className="h-4 w-4" />
-              Connect JobTread
-            </Button>
+            {/* How the Integration Works (shown before connecting too) */}
+            {howItWorksPanel}
           </div>
         )}
       </CardContent>

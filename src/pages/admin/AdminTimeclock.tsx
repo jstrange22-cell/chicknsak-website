@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Check,
   Ban,
   Download,
+  FileSpreadsheet,
   Loader2,
   AlertTriangle,
   Clock,
@@ -114,6 +116,104 @@ function exportToCSV(entries: TimeEntry[], memberMap: Record<string, string>) {
   a.download = `timeclock-export-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
+// Excel (XLSX) Export
+// ---------------------------------------------------------------------------
+
+function exportToExcel(entries: TimeEntry[], memberMap: Record<string, string>) {
+  const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Duration (hrs)', 'Break (min)', 'Status', 'Notes'];
+
+  const rows = entries.map((e) => {
+    const durationHrs = e.durationMinutes != null ? Math.round((e.durationMinutes / 60) * 100) / 100 : 0;
+    return [
+      memberMap[e.userId] || 'Unknown',
+      formatDateLabel(e.clockInTime),
+      formatTime(e.clockInTime),
+      formatTime(e.clockOutTime),
+      durationHrs,
+      e.breakMinutes ?? 0,
+      e.status,
+      e.notes || '',
+    ];
+  });
+
+  // Calculate totals for the summary row
+  const totalHours = entries.reduce((sum, e) => sum + (e.durationMinutes ?? 0), 0) / 60;
+  const totalBreakMin = entries.reduce((sum, e) => sum + (e.breakMinutes ?? 0), 0);
+  const summaryRow = [
+    'TOTAL',
+    '',
+    '',
+    '',
+    Math.round(totalHours * 100) / 100,
+    totalBreakMin,
+    '',
+    `${entries.length} entries`,
+  ];
+
+  // Build worksheet data: headers + data rows + blank row + summary
+  const wsData = [headers, ...rows, [], summaryRow];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // ----- Style header row (bold via cell formatting) -----
+  const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+    if (ws[cellRef]) {
+      ws[cellRef].s = {
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '1E293B' } },
+        alignment: { horizontal: 'center' },
+      };
+    }
+  }
+
+  // ----- Style summary row (bold) -----
+  const summaryRowIdx = rows.length + 2; // headers(0) + data rows + 1 blank row
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellRef = XLSX.utils.encode_cell({ r: summaryRowIdx, c: col });
+    if (ws[cellRef]) {
+      ws[cellRef].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'F1F5F9' } },
+      };
+    }
+  }
+
+  // ----- Auto-size columns -----
+  const colWidths = headers.map((h, i) => {
+    let maxLen = h.length;
+    rows.forEach((row) => {
+      const cellLen = String(row[i] ?? '').length;
+      if (cellLen > maxLen) maxLen = cellLen;
+    });
+    // summary row
+    const summaryLen = String(summaryRow[i] ?? '').length;
+    if (summaryLen > maxLen) maxLen = summaryLen;
+    return { wch: Math.min(maxLen + 3, 40) };
+  });
+  ws['!cols'] = colWidths;
+
+  // ----- Number format for duration & break columns -----
+  rows.forEach((_, rowIdx) => {
+    // Duration (hrs) is column index 4
+    const durCell = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 4 });
+    if (ws[durCell]) {
+      ws[durCell].z = '0.00';
+    }
+    // Break (min) is column index 5
+    const brkCell = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 5 });
+    if (ws[brkCell]) {
+      ws[brkCell].z = '0';
+    }
+  });
+
+  // Create workbook and trigger download
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Timeclock');
+  XLSX.writeFile(wb, `timeclock-export-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 // ---------------------------------------------------------------------------
@@ -255,12 +355,20 @@ export default function AdminTimeclock() {
             Filters
           </button>
           <button
+            onClick={() => exportToExcel(filteredEntries, memberMap)}
+            disabled={filteredEntries.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export Excel
+          </button>
+          <button
             onClick={() => exportToCSV(filteredEntries, memberMap)}
             disabled={filteredEntries.length === 0}
             className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
-            Export CSV
+            CSV
           </button>
         </div>
       </div>

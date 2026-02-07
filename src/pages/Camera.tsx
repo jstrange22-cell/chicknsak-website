@@ -27,13 +27,22 @@ export default function Camera() {
   const [isCapturing, setIsCapturing] = useState(false);
 
   // Start camera on mount (web only)
+  // Use a small delay to ensure the video element is mounted in the DOM
   useEffect(() => {
     if (!camera.isNative) {
-      camera.openCamera();
+      // Small delay to ensure video ref is attached to the DOM element
+      const timer = setTimeout(() => {
+        camera.openCamera();
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        camera.stopCamera();
+      };
     }
     return () => {
       camera.stopCamera();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCapture = async () => {
@@ -134,7 +143,9 @@ export default function Camera() {
               autoPlay
               playsInline
               muted
+              webkit-playsinline="true"
               className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: 'scaleX(1)' }}
             />
             <canvas ref={camera.canvasRef} className="hidden" />
           </>

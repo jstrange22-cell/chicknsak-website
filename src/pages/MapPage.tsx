@@ -21,6 +21,7 @@ import type { Project, ProjectStatus, ProjectType } from '@/types';
 // ---------------------------------------------------------------------------
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; color: string; dot: string }> = {
+  lead: { label: 'Lead', color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
   active: { label: 'Active', color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
   completed: { label: 'Completed', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
   on_hold: { label: 'On Hold', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
@@ -172,7 +173,10 @@ export default function MapPage() {
 
   // ------ Load projects from Firestore ------
   useEffect(() => {
-    if (!profile?.companyId) return;
+    if (!profile?.companyId) {
+      setIsLoading(false);
+      return;
+    }
 
     let cancelled = false;
 
@@ -446,7 +450,7 @@ export default function MapPage() {
           />
         </div>
         <div className="flex gap-1.5 flex-shrink-0">
-          {(['all', 'active', 'completed', 'on_hold', 'archived'] as const).map((s) => (
+          {(['all', 'lead', 'active', 'completed', 'on_hold', 'archived'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}

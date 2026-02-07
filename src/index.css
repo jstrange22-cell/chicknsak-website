@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Custom CSS Variables for StructureWorks Field */
+/* Custom CSS Variables for ProjectWorks */
 :root {
   --color-primary: #0f172a;
   --color-accent: #3B82F6;
@@ -65,4 +65,45 @@ body {
 /* Pull to refresh support */
 .overscroll-contain {
   overscroll-behavior: contain;
+}
+
+/* ----------------------------------------------------------------
+   Mobile Optimizations
+   ---------------------------------------------------------------- */
+
+/* Prevent double-tap zoom on interactive elements */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Smoother scrolling on mobile */
+@media (max-width: 767px) {
+  .overflow-y-auto,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent text size adjust on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Ensure inputs aren't smaller than 16px to prevent iOS zoom */
+  input, select, textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Tap highlight color for WebKit browsers */
+* {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Active states for better touch feedback */
+@media (hover: none) and (pointer: coarse) {
+  .active\:scale-\[0\.98\]:active {
+    transform: scale(0.98);
+    transition: transform 100ms ease-out;
+  }
 }

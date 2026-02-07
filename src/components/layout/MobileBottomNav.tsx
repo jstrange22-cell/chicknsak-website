@@ -13,6 +13,10 @@ import {
   LogOut,
   CreditCard,
   ChevronRight,
+  Bot,
+  ClipboardCheck,
+  FileText,
+  Map,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -37,8 +41,12 @@ const mainNavItems: NavItem[] = [
 const moreMenuItems: NavItem[] = [
   { icon: MessageSquare, label: 'Messages', path: '/messages' },
   { icon: Clock, label: 'Timeclock', path: '/timeclock' },
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+  { icon: ClipboardCheck, label: 'Checklists', path: '/checklists' },
+  { icon: FileText, label: 'Reports', path: '/reports' },
   { icon: CreditCard, label: 'Payments', path: '/payments' },
+  { icon: Map, label: 'Map', path: '/map' },
+  { icon: Bot, label: 'JobMate', path: '/ai-chat' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 

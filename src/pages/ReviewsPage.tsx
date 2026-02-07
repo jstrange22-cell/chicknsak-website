@@ -273,7 +273,10 @@ export default function ReviewsPage() {
 
   // ------ Load reviews from Firestore ------
   useEffect(() => {
-    if (!profile?.companyId) return;
+    if (!profile?.companyId) {
+      setIsLoading(false);
+      return;
+    }
 
     let cancelled = false;
 

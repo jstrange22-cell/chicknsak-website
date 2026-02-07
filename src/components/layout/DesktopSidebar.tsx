@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   DollarSign,
   Map,
+  Bot,
   Star,
   Briefcase,
   Link2,
@@ -46,14 +47,12 @@ interface NavSection {
 
 const baseNavSections: NavSection[] = [
   {
-    title: 'StructureWorks',
+    title: 'PROJECTWORKS',
     items: [
       { icon: MapPin, label: 'Projects', path: '/projects' },
       { icon: Image, label: 'Photos', path: '/camera' },
       { icon: MessageSquare, label: 'Messages', path: '/messages' },
       { icon: Clock, label: 'Timeclock', path: '/timeclock' },
-      { icon: Users, label: 'Users', path: '/users' },
-      { icon: UsersRound, label: 'User Groups', path: '/user-groups' },
       { icon: FileText, label: 'Reports', path: '/reports' },
       { icon: ClipboardCheck, label: 'Checklists', path: '/checklists' },
       { icon: DollarSign, label: 'Payments', path: '/payments' },
@@ -70,6 +69,7 @@ const baseNavSections: NavSection[] = [
   {
     title: 'Resources',
     items: [
+      { icon: Bot, label: 'JobMate', path: '/ai-chat' },
       { icon: Link2, label: 'Integrations', path: '/integrations' },
       { icon: LayoutTemplate, label: 'Templates', path: '/templates' },
       { icon: Settings, label: 'Settings', path: '/settings' },
@@ -159,7 +159,7 @@ export function DesktopSidebar() {
                 <button
                   onClick={() => {
                     setShowCreateMenu(false);
-                    navigate('/settings');
+                    navigate('/messages');
                   }}
                   className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                 >
@@ -169,7 +169,7 @@ export function DesktopSidebar() {
                 <button
                   onClick={() => {
                     setShowCreateMenu(false);
-                    navigate('/settings');
+                    navigate('/messages');
                   }}
                   className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                 >

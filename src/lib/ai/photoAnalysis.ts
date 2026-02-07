@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 /**
  * Structured result returned by the AI photo analysis edge function.
@@ -13,7 +14,7 @@ export interface PhotoAnalysis {
 }
 
 /**
- * Send a photo URL to the Supabase edge function for AI-powered analysis.
+ * Send a photo URL to the Firebase Cloud Function for AI-powered analysis.
  *
  * The edge function inspects the image and returns a structured caption,
  * detected construction phase, and a list of observations relevant to
@@ -27,14 +28,7 @@ export async function analyzePhoto(
   photoUrl: string,
   projectContext?: string
 ): Promise<PhotoAnalysis> {
-  if (!supabase) throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-  const { data, error } = await supabase.functions.invoke('ai-analyze-photo', {
-    body: { photoUrl, projectContext },
-  });
-
-  if (error) {
-    throw new Error(error.message || 'Photo analysis failed');
-  }
-
-  return data as PhotoAnalysis;
+  const aiAnalyzePhoto = httpsCallable<Record<string, unknown>, PhotoAnalysis>(functions, 'aiAnalyzePhoto');
+  const result = await aiAnalyzePhoto({ photoUrl, projectContext });
+  return result.data;
 }

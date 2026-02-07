@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 /**
  * Supported target types that determine how the AI structures the
@@ -39,14 +40,7 @@ export async function processVoiceTranscript<T = Record<string, unknown>>(
   targetType: VoiceTargetType,
   projectContext?: string
 ): Promise<T> {
-  if (!supabase) throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-  const { data, error } = await supabase.functions.invoke('ai-voice-process', {
-    body: { transcript, targetType, projectContext },
-  });
-
-  if (error) {
-    throw new Error(error.message || 'Voice processing failed');
-  }
-
-  return data as T;
+  const aiVoiceProcess = httpsCallable<Record<string, unknown>, T>(functions, 'aiVoiceProcess');
+  const result = await aiVoiceProcess({ transcript, targetType, projectContext });
+  return result.data;
 }

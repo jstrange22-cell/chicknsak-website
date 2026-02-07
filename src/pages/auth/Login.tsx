@@ -60,7 +60,7 @@ export default function Login() {
 
         {/* Brand name */}
         <h1 className="text-2xl font-bold text-slate-900 text-center mb-8">
-          StructureWorks
+          ProjectWorks
         </h1>
 
         {/* Login form */}

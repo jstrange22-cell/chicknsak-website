@@ -34,23 +34,21 @@ export function useProjects(filters?: ProjectFilters) {
     queryFn: async () => {
       if (!companyId) return [];
 
+      // Only use simple equality filters on Firestore to avoid needing
+      // composite indexes. Inequality/exclusion filters are applied client-side.
       const constraints: QueryConstraint[] = [
         where('companyId', '==', companyId),
       ];
 
-      // Apply status filter
+      // Status equality filter (only when requesting a specific status)
       if (filters?.status) {
         constraints.push(where('status', '==', filters.status));
-      } else {
-        // Default: exclude archived
-        constraints.push(where('status', '!=', 'archived'));
       }
 
       // Apply project type filter
       if (filters?.projectType) {
         constraints.push(where('projectType', '==', filters.projectType));
       }
-
 
       const q = query(collection(db, 'projects'), ...constraints);
       const snapshot = await getDocs(q);
@@ -59,6 +57,11 @@ export function useProjects(filters?: ProjectFilters) {
         id: doc.id,
         ...doc.data(),
       })) as Project[];
+
+      // Default: exclude archived projects client-side (avoids composite index)
+      if (!filters?.status) {
+        projects = projects.filter((p) => p.status !== 'archived');
+      }
 
       // Apply sorting client-side
       switch (filters?.sort) {

@@ -239,11 +239,11 @@ export function useTaskCounts() {
       const q = query(
         collection(db, 'tasks'),
         where('assignedTo', '==', userId),
-        where('status', '!=', 'completed')
       );
 
       const snapshot = await getDocs(q);
-      return snapshot.size;
+      // Filter out completed tasks client-side to avoid composite index requirement
+      return snapshot.docs.filter((d) => d.data().status !== 'completed').length;
     },
     enabled: !!user?.uid,
   });

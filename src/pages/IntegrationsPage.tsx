@@ -17,6 +17,8 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { useIntegrations, useDisconnectIntegration, useUpdateSyncTimestamp } from '@/hooks/useIntegrations';
 import JobTreadConnect from '@/components/integrations/JobTreadConnect';
+import QuickBooksConnect from '@/components/integrations/QuickBooksConnect';
+import GoogleDriveConnect from '@/components/integrations/GoogleDriveConnect';
 import type { IntegrationProvider } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -58,19 +60,17 @@ const INTEGRATION_CARDS: IntegrationCardConfig[] = [
   },
   {
     id: 'quickbooks',
-    name: 'QuickBooks',
-    description: 'Sync invoices and payments',
+    name: 'QuickBooks Online',
+    description: 'Sync invoices, payments, and customers with QBO',
     icon: <FileText className="h-5 w-5 text-green-600" />,
     iconBg: 'bg-green-100',
-    comingSoon: true,
   },
   {
     id: 'google_drive',
     name: 'Google Drive',
-    description: 'Auto-backup photos to Google Drive',
+    description: 'Auto-backup project photos and documents to Drive',
     icon: <HardDrive className="h-5 w-5 text-blue-600" />,
     iconBg: 'bg-blue-100',
-    comingSoon: true,
   },
 ];
 
@@ -144,8 +144,22 @@ function IntegrationCard({ config }: { config: IntegrationCardConfig }) {
     setExpanded(false);
   };
 
-  // JobTread has a custom connect component
-  const isJobTread = config.id === 'jobtread';
+  // Integrations with custom connect components
+  const hasCustomComponent = config.id === 'jobtread' || config.id === 'quickbooks' || config.id === 'google_drive';
+
+  // Render the custom connect component based on provider
+  const renderCustomComponent = () => {
+    switch (config.id) {
+      case 'jobtread':
+        return <JobTreadConnect />;
+      case 'quickbooks':
+        return <QuickBooksConnect />;
+      case 'google_drive':
+        return <GoogleDriveConnect />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <Card>
@@ -170,8 +184,8 @@ function IntegrationCard({ config }: { config: IntegrationCardConfig }) {
           </div>
         </div>
 
-        {/* Connected state */}
-        {status === 'connected' && !isJobTread && (
+        {/* Connected state for standard integrations */}
+        {status === 'connected' && !hasCustomComponent && (
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
             {lastSyncedLabel && (
               <span className="mr-auto text-xs text-slate-400">
@@ -202,8 +216,8 @@ function IntegrationCard({ config }: { config: IntegrationCardConfig }) {
           </div>
         )}
 
-        {/* JobTread connected — expandable section */}
-        {status === 'connected' && isJobTread && (
+        {/* Custom component — connected — expandable section */}
+        {status === 'connected' && hasCustomComponent && (
           <div className="mt-4 border-t border-slate-100 pt-3">
             <button
               onClick={() => setExpanded(!expanded)}
@@ -219,21 +233,21 @@ function IntegrationCard({ config }: { config: IntegrationCardConfig }) {
 
             {expanded && (
               <div className="mt-3">
-                <JobTreadConnect />
+                {renderCustomComponent()}
               </div>
             )}
           </div>
         )}
 
-        {/* JobTread disconnected — show connect component directly */}
-        {status === 'disconnected' && isJobTread && (
+        {/* Custom component — disconnected — show connect component directly */}
+        {status === 'disconnected' && hasCustomComponent && (
           <div className="mt-4 border-t border-slate-100 pt-3">
-            <JobTreadConnect />
+            {renderCustomComponent()}
           </div>
         )}
 
-        {/* Non-JobTread disconnected */}
-        {status === 'disconnected' && !isJobTread && (
+        {/* Standard disconnected */}
+        {status === 'disconnected' && !hasCustomComponent && (
           <div className="mt-4 border-t border-slate-100 pt-3">
             {config.externalUrl ? (
               <Button

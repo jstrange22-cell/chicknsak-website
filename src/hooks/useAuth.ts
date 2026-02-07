@@ -4,12 +4,15 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   sendPasswordResetEmail,
   onAuthStateChanged,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, getDocFromCache, setDoc, updateDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { Capacitor } from '@capacitor/core';
 import { auth, db } from '@/lib/firebase';
 import type { User } from '@/types';
 
@@ -93,6 +96,70 @@ export function useAuth() {
     return profile;
   }, []);
 
+
+  // Helper: create profile for a new Google user
+  const createGoogleProfile = useCallback(async (user: FirebaseUser) => {
+    const displayName = user.displayName || user.email?.split('@')[0] || 'User';
+
+    const companyRef = await addDoc(collection(db, 'companies'), {
+      name: `${displayName}'s Company`,
+      ownerId: user.uid,
+      plan: 'free',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await setDoc(doc(db, 'users', user.uid), {
+      email: user.email,
+      fullName: displayName,
+      avatarUrl: user.photoURL,
+      companyId: companyRef.id,
+      role: 'admin',
+      isActive: true,
+      notificationSettings: {
+        email: true,
+        push: true,
+        sms: false,
+        photoUploads: true,
+        comments: true,
+        mentions: true,
+        taskAssignments: true,
+      },
+      settings: {},
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    return fetchProfile(user.uid);
+  }, [fetchProfile]);
+
+  // Handle redirect result (for Google sign-in via redirect)
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          let profile = await fetchProfile(result.user.uid);
+          if (!profile) {
+            profile = await createGoogleProfile(result.user);
+          }
+          setState({
+            user: result.user,
+            profile,
+            isLoading: false,
+            isAuthenticated: true,
+            error: null,
+          });
+        }
+      })
+      .catch((error) => {
+        console.error('Redirect sign-in error:', error);
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Google sign in failed',
+        }));
+      });
+  }, [fetchProfile, createGoogleProfile]);
 
   // Listen to auth state changes
   useEffect(() => {
@@ -199,47 +266,39 @@ export function useAuth() {
   }, [fetchProfile]);
 
   // Sign in with Google
+  // - Native (Capacitor on Android/iOS): use redirect only (popups crash the WebView)
+  // - Web: try popup first, fallback to redirect if popup is blocked
   const signInWithGoogle = useCallback(async () => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    const provider = new GoogleAuthProvider();
+
+    const isNative = Capacitor.isNativePlatform();
+
+    if (isNative) {
+      // On Capacitor native, signInWithRedirect works correctly because the
+      // WebView uses the custom URL scheme (androidScheme: 'https') and
+      // Capacitor intercepts the redirect back to the app.
+      // signInWithPopup would crash the app by trying to open a new window.
+      console.log('Native platform detected, using redirect sign-in');
+      try {
+        await signInWithRedirect(auth, provider);
+        // The page will redirect away; result is handled by getRedirectResult
+        // in the useEffect above when the app resumes.
+        return null;
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Google sign in failed';
+        setState((prev) => ({ ...prev, isLoading: false, error: errorMessage }));
+        throw error;
+      }
+    }
+
+    // Web: try popup first (works on desktop when popups are allowed)
     try {
-      const provider = new GoogleAuthProvider();
       const { user } = await signInWithPopup(auth, provider);
-      
-      // Check if profile exists, if not create one with a new company
+
       let profile = await fetchProfile(user.uid);
       if (!profile) {
-        const displayName = user.displayName || user.email?.split('@')[0] || 'User';
-
-        // Auto-create a company for the new Google user
-        const companyRef = await addDoc(collection(db, 'companies'), {
-          name: `${displayName}'s Company`,
-          ownerId: user.uid,
-          plan: 'free',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-
-        await setDoc(doc(db, 'users', user.uid), {
-          email: user.email,
-          fullName: displayName,
-          avatarUrl: user.photoURL,
-          companyId: companyRef.id,
-          role: 'admin', // Company creator is admin
-          isActive: true,
-          notificationSettings: {
-            email: true,
-            push: true,
-            sms: false,
-            photoUploads: true,
-            comments: true,
-            mentions: true,
-            taskAssignments: true,
-          },
-          settings: {},
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        profile = await fetchProfile(user.uid);
+        profile = await createGoogleProfile(user);
       }
 
       setState({
@@ -249,14 +308,28 @@ export function useAuth() {
         isAuthenticated: true,
         error: null,
       });
-      
+
       return { user, profile };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Google sign in failed';
+    } catch (popupError: unknown) {
+      // If popup was blocked or failed, fall back to redirect
+      const errorCode = (popupError as { code?: string })?.code;
+      if (
+        errorCode === 'auth/popup-blocked' ||
+        errorCode === 'auth/popup-closed-by-user' ||
+        errorCode === 'auth/cancelled-popup-request'
+      ) {
+        console.log('Popup blocked, falling back to redirect sign-in');
+        // Redirect will navigate away; state handled by getRedirectResult on return
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
+
+      // Some other error
+      const errorMessage = popupError instanceof Error ? popupError.message : 'Google sign in failed';
       setState((prev) => ({ ...prev, isLoading: false, error: errorMessage }));
-      throw error;
+      throw popupError;
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, createGoogleProfile]);
 
 
   // Sign out

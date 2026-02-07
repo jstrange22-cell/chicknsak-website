@@ -11,7 +11,7 @@ interface AuthContextType {
   error: string | null;
   signUp: (email: string, password: string, fullName: string) => Promise<{ user: FirebaseUser; profile: User | null }>;
   signIn: (email: string, password: string) => Promise<{ user: FirebaseUser; profile: User | null }>;
-  signInWithGoogle: () => Promise<{ user: FirebaseUser; profile: User | null }>;
+  signInWithGoogle: () => Promise<{ user: FirebaseUser; profile: User | null } | null>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   clearError: () => void;

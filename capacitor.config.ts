@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.structureworks.field',
-  appName: 'StructureWorks Field',
+  appName: 'ProjectWorks',
   webDir: 'dist',
   server: {
     androidScheme: 'https'

@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 /**
  * A single item within a checklist section.
@@ -42,14 +43,7 @@ export async function generateChecklistFromDocument(
   documentText: string,
   documentType?: string
 ): Promise<GeneratedChecklist> {
-  if (!supabase) throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-  const { data, error } = await supabase.functions.invoke('ai-generate-checklist', {
-    body: { documentText, documentType },
-  });
-
-  if (error) {
-    throw new Error(error.message || 'Checklist generation failed');
-  }
-
-  return data as GeneratedChecklist;
+  const aiGenerateChecklist = httpsCallable<Record<string, unknown>, GeneratedChecklist>(functions, 'aiGenerateChecklist');
+  const result = await aiGenerateChecklist({ documentText, documentType });
+  return result.data;
 }

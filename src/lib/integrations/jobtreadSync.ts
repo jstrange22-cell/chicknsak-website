@@ -1,4 +1,4 @@
-// JobTread <-> StructureWorks Field Sync Engine
+// JobTread <-> ProjectWorks Sync Engine
 // Handles bidirectional sync between JobTread jobs and Firestore projects.
 
 import {
@@ -12,7 +12,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { JobTreadClient, JobTreadApiError, type JobTreadJob } from './jobtread';
+import { JobTreadClient, JobTreadApiError } from './jobtread';
 import type { ProjectStatus, Photo, Project } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,7 @@ import type { ProjectStatus, Photo, Project } from '@/types';
 export interface SyncResult {
   created: number;
   updated: number;
+  skipped: number;
   errors: Array<{ jobId: string; message: string }>;
 }
 
@@ -36,29 +37,32 @@ export interface BatchPhotoSyncConfig {
 // Status mapping
 // ---------------------------------------------------------------------------
 
+/**
+ * JobTread status → ProjectWorks status mapping.
+ *
+ * JobTread uses three statuses:
+ *   - "CREATED"  → the job exists but hasn't been approved by the customer yet → **lead**
+ *   - "APPROVED" → the customer has approved the job (Active Customers box) → **active**
+ *   - "CLOSED"   → the job is completed / closed out → **archived**
+ *
+ * We also handle a few legacy / fallback values just in case.
+ */
 const JOBTREAD_STATUS_MAP: Record<string, ProjectStatus> = {
+  created: 'lead',
+  approved: 'active',
   active: 'active',
-  complete: 'completed',
-  completed: 'completed',
+  pending: 'lead',
+  paid: 'active',
+  closed: 'archived',
+  complete: 'archived',
+  completed: 'archived',
   archived: 'archived',
   on_hold: 'on_hold',
   hold: 'on_hold',
 };
 
 function mapJobTreadStatus(status: string): ProjectStatus {
-  return JOBTREAD_STATUS_MAP[status.toLowerCase()] || 'active';
-}
-
-// ---------------------------------------------------------------------------
-// Build a full address string from address parts
-// ---------------------------------------------------------------------------
-
-function buildFullAddress(
-  address: JobTreadJob['address']
-): string | undefined {
-  if (!address) return undefined;
-  const parts = [address.street, address.city, address.state, address.zip].filter(Boolean);
-  return parts.length > 0 ? parts.join(', ') : undefined;
+  return JOBTREAD_STATUS_MAP[status.toLowerCase()] || 'lead';
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +75,10 @@ function buildFullAddress(
  * - New jobs create new project documents.
  * - Existing projects (matched by metadata.jobtreadJobId) are updated.
  * - Errors on individual jobs are collected rather than aborting the batch.
+ *
+ * Note: The JobTread API returns location as a single address string
+ * (e.g. "123 Main St, Dallas, TX 75201") rather than separate parts.
+ * We store this in `addressFull` and also populate the GPS coordinates.
  */
 export async function syncJobsToProjects(
   client: JobTreadClient,
@@ -80,10 +88,14 @@ export async function syncJobsToProjects(
     throw new Error('companyId is required for sync');
   }
 
-  const jobs = await client.getJobs(100);
+  // Paginate through ALL jobs instead of just the first 100.
+  // This ensures archived projects in ProjectWorks don't consume slots
+  // that prevent new/active JobTread jobs from syncing.
+  const jobs = await client.getAllJobs();
 
   let created = 0;
   let updated = 0;
+  let skipped = 0;
   const errors: SyncResult['errors'] = [];
 
   for (const job of jobs) {
@@ -97,21 +109,28 @@ export async function syncJobsToProjects(
       );
       const existing = await getDocs(existingQuery);
 
-      const projectData = {
+      // Skip projects that were manually archived in ProjectWorks.
+      // This prevents sync from overwriting a user's decision AND frees up
+      // slots in the 100-job sync limit for legitimate active jobs.
+      if (!existing.empty) {
+        const existingData = existing.docs[0].data();
+        if (existingData.status === 'archived') {
+          skipped++;
+          continue;
+        }
+      }
+
+      // Map JobTread job → Firestore project data.
+      // JobTread provides location.address as a full string (no separate parts).
+      // IMPORTANT: Firestore does not accept `undefined` — use `null` or omit.
+      //
+      // We build separate data objects for create vs update because:
+      // - On CREATE: set the mapped status from JobTread
+      // - On UPDATE: do NOT overwrite status — the user may have manually
+      //   changed it in ProjectWorks (e.g. moved a "lead" to "active")
+      const baseData: Record<string, unknown> = {
         companyId,
-        name: job.name,
-        addressStreet: job.address?.street ?? undefined,
-        addressCity: job.address?.city ?? undefined,
-        addressState: job.address?.state ?? undefined,
-        addressZip: job.address?.zip ?? undefined,
-        addressFull: buildFullAddress(job.address),
-        latitude: job.address?.latitude ?? undefined,
-        longitude: job.address?.longitude ?? undefined,
-        customerName: job.customer?.name ?? undefined,
-        customerEmail: job.customer?.email ?? undefined,
-        customerPhone: job.customer?.phone ?? undefined,
-        customerCompany: job.customer?.company ?? undefined,
-        status: mapJobTreadStatus(job.status),
+        name: job.name || 'Untitled Job',
         metadata: {
           jobtreadJobId: job.id,
           jobtreadJobNumber: job.number ?? null,
@@ -119,11 +138,18 @@ export async function syncJobsToProjects(
         updatedAt: serverTimestamp(),
       };
 
+      // Only include optional fields when they have actual values
+      if (job.location?.address) baseData.addressFull = job.location.address;
+      if (job.location?.latitude != null) baseData.latitude = job.location.latitude;
+      if (job.location?.longitude != null) baseData.longitude = job.location.longitude;
+      if (job.description) baseData.description = job.description;
+
       if (existing.empty) {
-        // Create a new project
+        // Create a new project — set status from JobTread mapping
         const newRef = doc(collection(db, 'projects'));
         await setDoc(newRef, {
-          ...projectData,
+          ...baseData,
+          status: mapJobTreadStatus(job.status),
           id: newRef.id,
           progress: 0,
           createdAt: serverTimestamp(),
@@ -131,9 +157,9 @@ export async function syncJobsToProjects(
         });
         created++;
       } else {
-        // Update the first matching project
+        // Update an existing project — preserve the user's status choice
         const existingDoc = existing.docs[0];
-        await updateDoc(doc(db, 'projects', existingDoc.id), projectData);
+        await updateDoc(doc(db, 'projects', existingDoc.id), baseData);
         updated++;
       }
     } catch (err) {
@@ -147,7 +173,7 @@ export async function syncJobsToProjects(
     }
   }
 
-  return { created, updated, errors };
+  return { created, updated, skipped, errors };
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +181,7 @@ export async function syncJobsToProjects(
 // ---------------------------------------------------------------------------
 
 /**
- * Upload a photo from StructureWorks Field storage to a linked JobTread job.
+ * Upload a photo from ProjectWorks storage to a linked JobTread job.
  */
 export async function syncPhotoToJobTread(
   client: JobTreadClient,
@@ -174,70 +200,27 @@ export async function syncPhotoToJobTread(
 }
 
 // ---------------------------------------------------------------------------
-// Push: Create a task in JobTread from a StructureWorks Field task
+// Push: Create a job in JobTread from a ProjectWorks project
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a task in JobTread linked to a specific job.
- */
-export async function syncTaskToJobTread(
-  client: JobTreadClient,
-  jobtreadJobId: string,
-  task: { title: string; description?: string; dueDate?: string }
-): Promise<{ id: string }> {
-  if (!jobtreadJobId) {
-    throw new Error('jobtreadJobId is required to sync a task');
-  }
-
-  return client.createTask(jobtreadJobId, task);
-}
-
-// ---------------------------------------------------------------------------
-// Push: Create a job in JobTread from a StructureWorks project
-// ---------------------------------------------------------------------------
-
-/**
- * When a project is created in StructureWorks, push it to JobTread as a new
- * job with the project's name, address, customer info, and coordinates.
+ * When a project is created in ProjectWorks, push it to JobTread as a new
+ * job with the project's name and description.
+ *
+ * Note: The JobTread createJob mutation only accepts name, description, and
+ * organizationId. Address/customer info is not settable via the create API.
  *
  * Returns the created JobTread job ID.
  */
 export async function syncProjectToJobTread(
   client: JobTreadClient,
   project: Project,
-  companyId: string
+  _companyId: string
 ): Promise<string> {
-  if (!companyId) {
-    throw new Error('companyId is required for sync');
-  }
-
-  const jobData: Parameters<JobTreadClient['createJob']>[0] = {
+  const createdJob = await client.createJob({
     name: project.name,
-    status: project.status === 'on_hold' ? 'hold' : project.status,
-  };
-
-  // Attach address fields when available
-  const hasAddress = project.addressStreet || project.addressCity || project.addressState || project.addressZip;
-  if (hasAddress) {
-    jobData.address = {
-      street: project.addressStreet,
-      city: project.addressCity,
-      state: project.addressState,
-      zip: project.addressZip,
-      latitude: project.latitude,
-      longitude: project.longitude,
-    };
-  }
-
-  // Attach customer info when available
-  if (project.customerName) {
-    jobData.customerName = project.customerName;
-    jobData.customerEmail = project.customerEmail;
-    jobData.customerPhone = project.customerPhone;
-    jobData.customerCompany = project.customerCompany;
-  }
-
-  const createdJob = await client.createJob(jobData);
+    description: project.description,
+  });
 
   // Store the JobTread job ID back on the Firestore project document
   const projectRef = doc(db, 'projects', project.id);
@@ -255,7 +238,7 @@ export async function syncProjectToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * Upload every photo in a StructureWorks project that hasn't been synced to
+ * Upload every photo in a ProjectWorks project that hasn't been synced to
  * the linked JobTread job yet.
  *
  * A photo is considered un-synced when `metadata.jobtreadFileId` is not set.
@@ -341,7 +324,7 @@ export async function syncAllPhotosToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * When a photo is annotated or its tags change in StructureWorks, push the
+ * When a photo is annotated or its tags change in ProjectWorks, push the
  * updated data to the corresponding JobTread file.
  *
  * - If the photo has an `annotatedUrl`, the file name in JobTread is updated
@@ -405,10 +388,10 @@ export async function syncFileEditToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * Sync StructureWorks tags to the files on a JobTread job, matching by tag
+ * Sync ProjectWorks tags to the files on a JobTread job, matching by tag
  * name. For every file in the JobTread job, look up the corresponding
  * Firestore photo (via `metadata.jobtreadFileId`) and push the current set
- * of tag names from StructureWorks to JobTread.
+ * of tag names from ProjectWorks to JobTread.
  */
 export async function syncTagsToJobTread(
   client: JobTreadClient,
@@ -467,7 +450,7 @@ export async function syncTagsToJobTread(
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the number of photos in a StructureWorks project that have not yet
+ * Returns the number of photos in a ProjectWorks project that have not yet
  * been synced to JobTread (i.e. missing `metadata.jobtreadFileId`).
  */
 export async function getUnsyncedPhotoCount(projectId: string): Promise<number> {

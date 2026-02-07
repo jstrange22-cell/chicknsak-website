@@ -490,15 +490,15 @@ export default function Dashboard() {
   // ---- Render ----
 
   return (
-    <div className="p-4 space-y-6 pb-24">
+    <div className="p-1 md:p-4 space-y-6 pb-24 md:pb-8">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Admin Dashboard</h1>
         <p className="text-slate-500 mt-1">Company-wide overview and analytics</p>
       </div>
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <OverviewCard
           title="Total Projects"
           value={totalProjects ?? 0}
@@ -528,6 +528,9 @@ export default function Dashboard() {
           isLoading={companyHoursLoading}
         />
       </div>
+
+      {/* Two-column layout on desktop */}
+      <div className="md:grid md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
 
       {/* Team Activity: Photos per User this week */}
       <div>
@@ -632,6 +635,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      </div>{/* end two-column layout */}
 
       {/* Recent Activity Feed */}
       <div>

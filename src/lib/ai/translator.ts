@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 /**
  * Languages currently supported by the translation feature.
@@ -23,25 +24,21 @@ export async function translateText(
   text: string,
   targetLanguage: TranslationLanguage
 ): Promise<string> {
-  if (!supabase) throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   const languageLabel = targetLanguage === 'es' ? 'Spanish' : 'English';
 
-  const { data, error } = await supabase.functions.invoke('ai-voice-process', {
-    body: {
-      transcript: text,
-      targetType: 'translation',
-      projectContext: `Target language: ${languageLabel}`,
-    },
+  const aiVoiceProcess = httpsCallable<Record<string, unknown>, Record<string, string>>(functions, 'aiVoiceProcess');
+  const result = await aiVoiceProcess({
+    transcript: text,
+    targetType: 'translation',
+    projectContext: `Target language: ${languageLabel}`,
   });
 
-  if (error) {
-    throw new Error(error.message || 'Translation failed');
-  }
+  const data = result.data;
 
-  // The edge function may return the translation under different keys
+  // The cloud function may return the translation under different keys
   // depending on the prompt template version. Prefer `translation`, fall
   // back to `description`, and ultimately return the original text.
-  return (data as Record<string, string>).translation
-    ?? (data as Record<string, string>).description
+  return data.translation
+    ?? data.description
     ?? text;
 }

@@ -34,7 +34,7 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function (payload) {
   console.log('[firebase-messaging-sw] Background message received:', payload);
 
-  var notificationTitle = payload.notification?.title || 'StructureWorks Field';
+  var notificationTitle = payload.notification?.title || 'ProjectWorks';
   var notificationOptions = {
     body: payload.notification?.body || 'You have a new message.',
     icon: '/pwa-192x192.svg',

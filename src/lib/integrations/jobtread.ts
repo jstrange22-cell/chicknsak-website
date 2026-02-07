@@ -1,21 +1,35 @@
-// JobTread GraphQL API Client
-// JobTread uses a GraphQL API at https://api.jobtread.com/graphql with OAuth2 bearer tokens.
+// JobTread API Client
+// JobTread uses the Pave query language at https://api.jobtread.com/pave
+// with Grant-based Bearer token authentication.
+//
+// Query format: POST JSON body { "query": { ... } }
+// - "$" holds input parameters for a field
+// - Empty objects {} request scalar fields
+// - Nested objects request sub-selections
+// - Collections use "nodes" to return arrays
+//
+// Example – list jobs for an org:
+// {
+//   "query": {
+//     "organization": {
+//       "$": { "id": "<orgId>" },
+//       "jobs": {
+//         "$": { "size": 50 },
+//         "nodes": { "id": {}, "name": {}, "status": {} }
+//       }
+//     }
+//   }
+// }
 
-export interface JobTreadAddress {
-  street: string;
-  city: string;
-  state: string;
-  zip: string;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface JobTreadLocation {
+  id: string;
+  address: string;
   latitude?: number;
   longitude?: number;
-}
-
-export interface JobTreadCustomer {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  company?: string;
 }
 
 export interface JobTreadJob {
@@ -23,17 +37,16 @@ export interface JobTreadJob {
   name: string;
   number?: string;
   status: string;
-  address?: JobTreadAddress;
-  customer?: JobTreadCustomer;
+  description?: string;
+  closedOn?: string;
+  location?: JobTreadLocation;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface JobTreadFile {
   id: string;
   name: string;
   url: string;
-  jobId: string;
   tags?: string[];
 }
 
@@ -42,42 +55,72 @@ export interface JobTreadTask {
   title?: string;
   description?: string;
   dueDate?: string;
-  jobId?: string;
+}
+
+export interface JobTreadOrganization {
+  id: string;
+  name: string;
 }
 
 export class JobTreadApiError extends Error {
   readonly statusCode?: number;
-  readonly graphqlErrors?: Array<{ message: string; path?: string[] }>;
+  readonly apiMessage?: string;
 
-  constructor(
-    message: string,
-    statusCode?: number,
-    graphqlErrors?: Array<{ message: string; path?: string[] }>
-  ) {
+  constructor(message: string, statusCode?: number) {
     super(message);
     this.name = 'JobTreadApiError';
     this.statusCode = statusCode;
-    this.graphqlErrors = graphqlErrors;
   }
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a "return shape" object for scalar fields.
+ * Each field name maps to `{}` which tells the Pave API to include it.
+ */
+function f(...names: string[]): Record<string, Record<string, never>> {
+  const obj: Record<string, Record<string, never>> = {};
+  for (const n of names) obj[n] = {};
+  return obj;
+}
+
+/** Fields we request for every job. */
+const JOB_FIELDS = {
+  ...f('id', 'name', 'number', 'status', 'description', 'closedOn', 'createdAt'),
+  location: f('id', 'address', 'latitude', 'longitude'),
+};
+
+// ---------------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------------
+
 export class JobTreadClient {
-  private readonly endpoint = 'https://api.jobtread.com/graphql';
+  // Route through the same-origin PHP proxy to avoid CORS issues.
+  // The proxy forwards requests to https://api.jobtread.com/pave server-side.
+  private readonly endpoint = '/api/jobtread-proxy.php';
   private accessToken: string;
+  private _orgId: string | null = null;
 
   constructor(accessToken: string) {
-    this.accessToken = accessToken;
     if (!accessToken) {
       throw new JobTreadApiError('Access token is required');
     }
+    this.accessToken = accessToken;
   }
 
+  // -----------------------------------------------------------------------
+  // Core query method
+  // -----------------------------------------------------------------------
+
   /**
-   * Execute a GraphQL query or mutation against the JobTread API.
+   * Execute a Pave query against the JobTread API.
+   * The query is wrapped in { "query": { ... } }.
    */
   private async query<T = unknown>(
-    gql: string,
-    variables?: Record<string, unknown>
+    paveQuery: Record<string, unknown>
   ): Promise<T> {
     let response: Response;
 
@@ -88,7 +131,7 @@ export class JobTreadClient {
           'Authorization': `Bearer ${this.accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: gql, variables }),
+        body: JSON.stringify({ query: paveQuery }),
       });
     } catch (err) {
       throw new JobTreadApiError(
@@ -99,108 +142,260 @@ export class JobTreadClient {
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'Unknown error');
       throw new JobTreadApiError(
-        `JobTread API error: ${response.status} ${response.statusText} - ${errorBody}`,
+        `JobTread API error: ${response.status} - ${errorBody}`,
         response.status
       );
     }
 
-    let result: { data?: T; errors?: Array<{ message: string; path?: string[] }> };
+    let result: unknown;
     try {
       result = await response.json();
     } catch {
-      throw new JobTreadApiError('Failed to parse JobTread API response as JSON');
+      throw new JobTreadApiError('Failed to parse JobTread API response');
     }
 
-    if (result.errors?.length) {
-      throw new JobTreadApiError(
-        `JobTread GraphQL error: ${result.errors[0].message}`,
-        undefined,
-        result.errors
-      );
+    // The API returns error strings directly for invalid queries
+    if (typeof result === 'string') {
+      throw new JobTreadApiError(result);
     }
 
-    if (!result.data) {
-      throw new JobTreadApiError('JobTread API returned no data');
+    return result as T;
+  }
+
+  // -----------------------------------------------------------------------
+  // Organization resolution
+  // -----------------------------------------------------------------------
+
+  /**
+   * Resolve the organization ID for the current grant.
+   * This is needed because listing jobs requires querying through the org.
+   * The result is cached for the lifetime of this client instance.
+   */
+  async getOrganizationId(): Promise<string> {
+    if (this._orgId) return this._orgId;
+
+    const data = await this.query<{
+      currentGrant: {
+        user: {
+          memberships: {
+            nodes: Array<{ organization: { id: string; name: string } }>;
+          };
+        };
+      };
+    }>({
+      currentGrant: {
+        user: {
+          memberships: {
+            nodes: {
+              organization: f('id', 'name'),
+            },
+          },
+        },
+      },
+    });
+
+    const memberships = data.currentGrant?.user?.memberships?.nodes;
+    if (!memberships || memberships.length === 0) {
+      throw new JobTreadApiError('No organization found for this grant key');
     }
 
-    return result.data;
+    this._orgId = memberships[0].organization.id;
+    return this._orgId;
   }
 
   /**
-   * Fetch a paginated list of jobs.
+   * Get the organization details.
    */
-  async getJobs(limit = 50): Promise<JobTreadJob[]> {
+  async getOrganization(): Promise<JobTreadOrganization> {
+    const orgId = await this.getOrganizationId();
+
     const data = await this.query<{
-      jobs: { edges: Array<{ node: JobTreadJob }> };
-    }>(`
-      query GetJobs($limit: Int) {
-        jobs(first: $limit) {
-          edges {
-            node {
-              id
-              name
-              number
-              status
-              address {
-                street
-                city
-                state
-                zip
-                latitude
-                longitude
-              }
-              customer {
-                id
-                name
-                email
-                phone
-                company
-              }
-              createdAt
-              updatedAt
-            }
-          }
+      organization: JobTreadOrganization;
+    }>({
+      organization: {
+        $: { id: orgId },
+        ...f('id', 'name'),
+      },
+    });
+
+    return data.organization;
+  }
+
+  // -----------------------------------------------------------------------
+  // Connection test
+  // -----------------------------------------------------------------------
+
+  /**
+   * Test whether the current API key is valid.
+   * Fetches the version and current grant to verify.
+   */
+  async testConnection(): Promise<{ grantId: string; orgName: string }> {
+    const data = await this.query<{
+      version: string;
+      currentGrant: {
+        id: string;
+        user: {
+          memberships: {
+            nodes: Array<{ organization: { id: string; name: string } }>;
+          };
+        };
+      };
+    }>({
+      version: {},
+      currentGrant: {
+        id: {},
+        user: {
+          memberships: {
+            nodes: {
+              organization: f('id', 'name'),
+            },
+          },
+        },
+      },
+    });
+
+    const memberships = data.currentGrant?.user?.memberships?.nodes;
+    const orgName = memberships?.[0]?.organization?.name ?? 'Unknown';
+    const orgId = memberships?.[0]?.organization?.id;
+
+    // Cache the org ID
+    if (orgId) this._orgId = orgId;
+
+    return {
+      grantId: data.currentGrant.id,
+      orgName,
+    };
+  }
+
+  // -----------------------------------------------------------------------
+  // Jobs
+  // -----------------------------------------------------------------------
+
+  /**
+   * Fetch jobs from the organization with optional where filter.
+   */
+  async getJobs(
+    limit = 100,
+    where?: Record<string, unknown>
+  ): Promise<JobTreadJob[]> {
+    const orgId = await this.getOrganizationId();
+
+    const jobsParams: Record<string, unknown> = { size: limit };
+    if (where) jobsParams.where = where;
+
+    const data = await this.query<{
+      organization: {
+        jobs: {
+          nodes: JobTreadJob[];
+        };
+      };
+    }>({
+      organization: {
+        $: { id: orgId },
+        jobs: {
+          $: jobsParams,
+          nodes: JOB_FIELDS,
+        },
+      },
+    });
+
+    return data.organization?.jobs?.nodes ?? [];
+  }
+
+  /**
+   * Fetch ALL jobs by making separate filtered API calls and combining.
+   *
+   * The JobTread API caps results at 100 per request with no real pagination.
+   * We work around this by splitting queries using date-range batches and
+   * the `closedOn` field so every job is captured regardless of total count.
+   *
+   * Strategy:
+   *   1. Fetch non-closed jobs in yearly batches (handles 100+ open jobs)
+   *   2. Fetch closed jobs in yearly batches (handles 100+ closed jobs)
+   *   3. Deduplicate by ID and return the combined set
+   */
+  async getAllJobs(): Promise<JobTreadJob[]> {
+    const seen = new Set<string>();
+    const allJobs: JobTreadJob[] = [];
+
+    const addJobs = (jobs: JobTreadJob[]) => {
+      for (const job of jobs) {
+        if (!seen.has(job.id)) {
+          seen.add(job.id);
+          allJobs.push(job);
         }
       }
-    `, { limit });
+    };
 
-    return data.jobs.edges.map((e) => e.node);
+    // Build yearly date boundaries from 2024 to current year + 1
+    const currentYear = new Date().getFullYear();
+    const years: string[] = [];
+    for (let y = 2024; y <= currentYear + 1; y++) {
+      years.push(`${y}-01-01T00:00:00.000Z`);
+    }
+
+    // Fetch non-closed jobs in yearly batches
+    for (let i = 0; i < years.length - 1; i++) {
+      const batch = await this.getJobs(100, {
+        and: [
+          { '=': [{ field: 'closedOn' }, { value: null }] },
+          { '>=': [{ field: 'createdAt' }, { value: years[i] }] },
+          { '<': [{ field: 'createdAt' }, { value: years[i + 1] }] },
+        ],
+      });
+      addJobs(batch);
+    }
+
+    // Also fetch any non-closed jobs created before our earliest year
+    const veryOld = await this.getJobs(100, {
+      and: [
+        { '=': [{ field: 'closedOn' }, { value: null }] },
+        { '<': [{ field: 'createdAt' }, { value: years[0] }] },
+      ],
+    });
+    addJobs(veryOld);
+
+    // Fetch closed jobs in yearly batches
+    for (let i = 0; i < years.length - 1; i++) {
+      const batch = await this.getJobs(100, {
+        and: [
+          { '!=': [{ field: 'closedOn' }, { value: null }] },
+          { '>=': [{ field: 'createdAt' }, { value: years[i] }] },
+          { '<': [{ field: 'createdAt' }, { value: years[i + 1] }] },
+        ],
+      });
+      addJobs(batch);
+    }
+
+    // Also fetch any closed jobs created before our earliest year
+    const veryOldClosed = await this.getJobs(100, {
+      and: [
+        { '!=': [{ field: 'closedOn' }, { value: null }] },
+        { '<': [{ field: 'createdAt' }, { value: years[0] }] },
+      ],
+    });
+    addJobs(veryOldClosed);
+
+    return allJobs;
   }
 
   /**
    * Fetch a single job by ID.
    */
   async getJob(id: string): Promise<JobTreadJob> {
-    const data = await this.query<{ job: JobTreadJob }>(`
-      query GetJob($id: ID!) {
-        job(id: $id) {
-          id
-          name
-          number
-          status
-          address {
-            street
-            city
-            state
-            zip
-            latitude
-            longitude
-          }
-          customer {
-            id
-            name
-            email
-            phone
-            company
-          }
-          createdAt
-          updatedAt
-        }
-      }
-    `, { id });
+    const data = await this.query<{ job: JobTreadJob }>({
+      job: {
+        $: { id },
+        ...JOB_FIELDS,
+      },
+    });
 
     return data.job;
   }
+
+  // -----------------------------------------------------------------------
+  // Files
+  // -----------------------------------------------------------------------
 
   /**
    * Upload a file to a job by URL reference.
@@ -210,166 +405,86 @@ export class JobTreadClient {
     fileUrl: string,
     fileName: string
   ): Promise<JobTreadFile> {
-    const data = await this.query<{ createFile: JobTreadFile }>(`
-      mutation UploadFile($input: CreateFileInput!) {
-        createFile(input: $input) {
-          id
-          name
-          url
-          jobId
-          tags
-        }
-      }
-    `, {
-      input: { jobId, url: fileUrl, name: fileName },
+    const data = await this.query<{
+      createFile: { createdFile: JobTreadFile };
+    }>({
+      createFile: {
+        $: { jobId, url: fileUrl, name: fileName },
+        createdFile: f('id', 'name', 'url'),
+      },
     });
 
-    return data.createFile;
+    return data.createFile.createdFile;
   }
 
   /**
-   * Create a task on a job.
+   * Update an existing file's metadata.
    */
-  async createTask(
-    jobId: string,
-    task: { title: string; description?: string; dueDate?: string }
-  ): Promise<JobTreadTask> {
-    const data = await this.query<{ createTask: JobTreadTask }>(`
-      mutation CreateTask($input: CreateTaskInput!) {
-        createTask(input: $input) {
-          id
-        }
-      }
-    `, {
-      input: { jobId, ...task },
+  async updateFile(
+    fileId: string,
+    updateData: { name?: string; tags?: string[]; folderId?: string }
+  ): Promise<JobTreadFile> {
+    const data = await this.query<{
+      updateFile: { updatedFile: JobTreadFile };
+    }>({
+      updateFile: {
+        $: { id: fileId, ...updateData },
+        updatedFile: f('id', 'name', 'url'),
+      },
     });
 
-    return data.createTask;
+    return data.updateFile.updatedFile;
   }
 
   /**
-   * Fetch a single customer by ID.
+   * Fetch files for a job.
    */
-  async getCustomer(id: string): Promise<JobTreadCustomer | null> {
-    const data = await this.query<{ customer: JobTreadCustomer | null }>(`
-      query GetCustomer($id: ID!) {
-        customer(id: $id) {
-          id
-          name
-          email
-          phone
-          company
-        }
-      }
-    `, { id });
+  async getJobFiles(jobId: string): Promise<JobTreadFile[]> {
+    const data = await this.query<{
+      job: {
+        documents: {
+          nodes: JobTreadFile[];
+        };
+      };
+    }>({
+      job: {
+        $: { id: jobId },
+        documents: {
+          nodes: f('id', 'name', 'url'),
+        },
+      },
+    });
 
-    return data.customer;
+    return data.job?.documents?.nodes ?? [];
   }
+
+  // -----------------------------------------------------------------------
+  // Job creation
+  // -----------------------------------------------------------------------
 
   /**
    * Create a new job in JobTread.
    */
   async createJob(jobData: {
     name: string;
-    status?: string;
-    address?: {
-      street?: string;
-      city?: string;
-      state?: string;
-      zip?: string;
-      latitude?: number;
-      longitude?: number;
-    };
-    customerId?: string;
-    customerName?: string;
-    customerEmail?: string;
-    customerPhone?: string;
-    customerCompany?: string;
+    description?: string;
+    organizationId?: string;
   }): Promise<JobTreadJob> {
-    const data = await this.query<{ createJob: JobTreadJob }>(`
-      mutation CreateJob($input: CreateJobInput!) {
-        createJob(input: $input) {
-          id
-          name
-          number
-          status
-          address {
-            street
-            city
-            state
-            zip
-            latitude
-            longitude
-          }
-          customer {
-            id
-            name
-            email
-            phone
-            company
-          }
-          createdAt
-          updatedAt
-        }
-      }
-    `, {
-      input: jobData,
-    });
+    const orgId = jobData.organizationId ?? await this.getOrganizationId();
 
-    return data.createJob;
-  }
-
-  /**
-   * Update an existing file's metadata (name, tags, folder, etc.).
-   */
-  async updateFile(
-    fileId: string,
-    data: {
-      name?: string;
-      tags?: string[];
-      folderId?: string;
-    }
-  ): Promise<JobTreadFile> {
-    const result = await this.query<{ updateFile: JobTreadFile }>(`
-      mutation UpdateFile($id: ID!, $input: UpdateFileInput!) {
-        updateFile(id: $id, input: $input) {
-          id
-          name
-          url
-          jobId
-          tags
-        }
-      }
-    `, {
-      id: fileId,
-      input: data,
-    });
-
-    return result.updateFile;
-  }
-
-  /**
-   * Fetch all files linked to a specific job.
-   */
-  async getJobFiles(jobId: string, limit = 100): Promise<JobTreadFile[]> {
     const data = await this.query<{
-      files: { edges: Array<{ node: JobTreadFile }> };
-    }>(`
-      query GetJobFiles($jobId: ID!, $limit: Int) {
-        files(jobId: $jobId, first: $limit) {
-          edges {
-            node {
-              id
-              name
-              url
-              jobId
-              tags
-            }
-          }
-        }
-      }
-    `, { jobId, limit });
+      createJob: { createdJob: JobTreadJob };
+    }>({
+      createJob: {
+        $: {
+          name: jobData.name,
+          description: jobData.description,
+          organizationId: orgId,
+        },
+        createdJob: JOB_FIELDS,
+      },
+    });
 
-    return data.files.edges.map((e) => e.node);
+    return data.createJob.createdJob;
   }
 }

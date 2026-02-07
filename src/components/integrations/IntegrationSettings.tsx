@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import JobTreadConnect from '@/components/integrations/JobTreadConnect';
+import QuickBooksConnect from '@/components/integrations/QuickBooksConnect';
+import GoogleDriveConnect from '@/components/integrations/GoogleDriveConnect';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,19 +63,21 @@ const INTEGRATIONS: IntegrationConfig[] = [
   },
   {
     id: 'quickbooks',
-    name: 'QuickBooks',
-    description: 'Sync invoices and payments',
+    name: 'QuickBooks Online',
+    description: 'Sync invoices, payments, and customers with QBO',
     icon: <FileText className="h-5 w-5 text-green-600" />,
     iconBg: 'bg-green-100',
-    status: 'coming_soon',
+    status: 'disconnected',
+    custom: true,
   },
   {
-    id: 'google-drive',
+    id: 'google_drive',
     name: 'Google Drive',
-    description: 'Auto-backup photos to Google Drive',
+    description: 'Auto-backup project photos and documents to Drive',
     icon: <HardDrive className="h-5 w-5 text-blue-600" />,
     iconBg: 'bg-blue-100',
-    status: 'coming_soon',
+    status: 'disconnected',
+    custom: true,
   },
 ];
 
@@ -241,8 +245,21 @@ export function IntegrationSettings() {
       {/* Integration grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {INTEGRATIONS.map((integration) => {
-          // JobTread has its own dedicated component.
-          if (integration.custom && integration.id === 'jobtread') {
+          // Custom integrations have their own dedicated connect components
+          if (integration.custom) {
+            const renderCustomComponent = () => {
+              switch (integration.id) {
+                case 'jobtread':
+                  return <JobTreadConnect />;
+                case 'quickbooks':
+                  return <QuickBooksConnect />;
+                case 'google_drive':
+                  return <GoogleDriveConnect />;
+                default:
+                  return null;
+              }
+            };
+
             return (
               <Card key={integration.id}>
                 <CardContent className="p-4">
@@ -266,8 +283,8 @@ export function IntegrationSettings() {
                     </div>
                   </div>
 
-                  {/* Delegate connection UI to JobTreadConnect */}
-                  <JobTreadConnect />
+                  {/* Delegate connection UI to custom component */}
+                  {renderCustomComponent()}
                 </CardContent>
               </Card>
             );

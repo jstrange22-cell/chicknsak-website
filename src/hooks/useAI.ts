@@ -4,6 +4,11 @@ import { generateReportFromPhotos } from '@/lib/ai/reportGenerator';
 import { processVoiceTranscript } from '@/lib/ai/voiceProcessor';
 import { generateChecklistFromDocument } from '@/lib/ai/checklistGenerator';
 import { translateText } from '@/lib/ai/translator';
+import {
+  sendJobMateMessage,
+  type JobMateChatRequest,
+  type JobMateChatResponse,
+} from '@/lib/ai/jobmate';
 import type { PhotoAnalysis } from '@/lib/ai/photoAnalysis';
 import type { ReportPhoto, GeneratedReport } from '@/lib/ai/reportGenerator';
 import type { VoiceTargetType } from '@/lib/ai/voiceProcessor';
@@ -18,6 +23,8 @@ export type {
   VoiceTargetType,
   GeneratedChecklist,
   TranslationLanguage,
+  JobMateChatRequest,
+  JobMateChatResponse,
 };
 
 /**
@@ -29,13 +36,13 @@ export type {
  *
  * Usage:
  * ```tsx
- * const { analyzePhoto, translate } = useAI();
+ * const { analyzePhoto, jobmate } = useAI();
  *
  * // Fire-and-forget
  * analyzePhoto.mutate({ photoUrl: url });
  *
  * // Await the result
- * const result = await analyzePhoto.mutateAsync({ photoUrl: url });
+ * const result = await jobmate.mutateAsync({ message, mode, conversationHistory });
  * ```
  */
 export function useAI() {
@@ -84,11 +91,20 @@ export function useAI() {
       translateText(text, targetLanguage),
   });
 
+  const jobmateMutation = useMutation<
+    JobMateChatResponse,
+    Error,
+    JobMateChatRequest
+  >({
+    mutationFn: (request) => sendJobMateMessage(request),
+  });
+
   return {
     analyzePhoto: analyzePhotoMutation,
     generateReport: generateReportMutation,
     processVoice: processVoiceMutation,
     generateChecklist: generateChecklistMutation,
     translate: translateMutation,
+    jobmate: jobmateMutation,
   };
 }

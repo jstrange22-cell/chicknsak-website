@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 /**
  * Metadata for a single photo that will be included in the generated report.
@@ -48,14 +49,7 @@ export async function generateReportFromPhotos(
   projectName: string,
   reportType: string
 ): Promise<GeneratedReport> {
-  if (!supabase) throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-  const { data, error } = await supabase.functions.invoke('ai-generate-report', {
-    body: { photos, projectName, reportType },
-  });
-
-  if (error) {
-    throw new Error(error.message || 'Report generation failed');
-  }
-
-  return data as GeneratedReport;
+  const aiGenerateReport = httpsCallable<Record<string, unknown>, GeneratedReport>(functions, 'aiGenerateReport');
+  const result = await aiGenerateReport({ photos, projectName, reportType });
+  return result.data;
 }

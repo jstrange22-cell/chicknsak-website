@@ -1,24 +1,6 @@
-// NOTE: Requires @supabase/supabase-js as a dependency.
-// Install with: npm install @supabase/supabase-js
-//
-// Also add these environment variables to your .env file:
-//   VITE_SUPABASE_URL=https://your-project.supabase.co
-//   VITE_SUPABASE_ANON_KEY=your-anon-key
+// DEPRECATED: Supabase has been fully migrated to Firebase.
+// All Cloud Functions now use Firebase httpsCallable via @/lib/firebase.
+// This file is kept as a placeholder to prevent import errors during cleanup.
+// It can be safely deleted once all references are removed.
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-
-let supabaseInstance: SupabaseClient | null = null;
-
-if (supabaseUrl && supabaseAnonKey) {
-  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
-} else {
-  console.warn(
-    '[Supabase] Missing environment variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). ' +
-      'AI features that depend on Supabase Edge Functions will be unavailable.'
-  );
-}
-
-export const supabase = supabaseInstance;
+export const supabase = null;

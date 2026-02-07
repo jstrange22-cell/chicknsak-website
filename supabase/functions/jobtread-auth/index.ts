@@ -1,6 +1,6 @@
 // JobTread OAuth2 Authorization Edge Function
 //
-// Handles the two-step OAuth2 flow for connecting a StructureWorks Field
+// Handles the two-step OAuth2 flow for connecting a ProjectWorks
 // company to their JobTread account.
 //
 // Actions:

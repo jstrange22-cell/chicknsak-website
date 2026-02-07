@@ -62,7 +62,7 @@ export default function Signup() {
           <HardHat className="h-7 w-7 text-white" strokeWidth={1.75} />
         </div>
         <h1 className="text-2xl font-bold text-slate-900 text-center mb-8">
-          StructureWorks
+          ProjectWorks
         </h1>
 
         {/* Signup form */}

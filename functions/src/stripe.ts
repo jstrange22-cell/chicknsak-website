@@ -1,5 +1,5 @@
 /**
- * Stripe Cloud Functions for StructureWorks Field
+ * Stripe Cloud Functions for ProjectWorks
  *
  * createCheckoutSession - Callable function that creates a Stripe Checkout Session
  * stripeWebhook        - HTTP endpoint that handles Stripe webhook events

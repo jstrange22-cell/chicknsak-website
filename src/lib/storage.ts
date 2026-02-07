@@ -73,12 +73,16 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
 
 
   // Create photo document in Firestore
+  // Note: `url` is the primary field the Photo type expects for display.
+  // We also store `originalUrl` for backward compatibility.
   const photoData = {
     projectId,
     companyId,
     userId,
+    uploadedBy: userId,
     storagePath,
     thumbnailPath,
+    url: originalUrl,
     originalUrl,
     thumbnailUrl,
     description: description || null,
@@ -88,6 +92,7 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
     isBefore,
     isAfter,
     isInternal,
+    photoType: isBefore ? 'before' : isAfter ? 'after' : 'progress',
     fileSizeBytes: compressedImage.size,
     width: dimensions.width,
     height: dimensions.height,

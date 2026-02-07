@@ -36,6 +36,12 @@ export function useCamera() {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
+      // Stop any existing stream first
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: state.facingMode,
@@ -48,12 +54,21 @@ export function useCamera() {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      // Wait for the video element to be available (race condition fix)
+      const attachStream = () => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(console.error);
+          };
+          setState(prev => ({ ...prev, isActive: true, isLoading: false }));
+        } else {
+          // Retry after a short delay if the ref isn't ready yet
+          setTimeout(attachStream, 50);
+        }
+      };
 
-      setState(prev => ({ ...prev, isActive: true, isLoading: false }));
+      attachStream();
     } catch (error) {
       console.error('Camera error:', error);
       setState(prev => ({

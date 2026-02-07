@@ -37,6 +37,8 @@ const ReviewsPage = lazy(() => import('@/pages/ReviewsPage'));
 const PortfolioPage = lazy(() => import('@/pages/PortfolioPage'));
 const IntegrationsPage = lazy(() => import('@/pages/IntegrationsPage'));
 const TemplatesPage = lazy(() => import('@/pages/TemplatesPage'));
+const VoiceNotesPage = lazy(() => import('@/pages/VoiceNotesPage'));
+const AIChatPage = lazy(() => import('@/pages/AIChatPage'));
 
 // Admin Pages
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'));
@@ -124,6 +126,8 @@ function App() {
                 <Route path="portfolio" element={<PortfolioPage />} />
                 <Route path="integrations" element={<IntegrationsPage />} />
                 <Route path="templates" element={<TemplatesPage />} />
+                <Route path="voice-notes" element={<VoiceNotesPage />} />
+                <Route path="ai-chat" element={<AIChatPage />} />
                 <Route path="admin" element={<AdminLayout />}>
                   <Route index element={<AdminTimeclock />} />
                   <Route path="timeclock" element={<AdminTimeclock />} />

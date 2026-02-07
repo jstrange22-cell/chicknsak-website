@@ -255,7 +255,10 @@ export default function PortfolioPage() {
 
   // ------ Load data from Firestore ------
   useEffect(() => {
-    if (!profile?.companyId) return;
+    if (!profile?.companyId) {
+      setIsLoading(false);
+      return;
+    }
 
     let cancelled = false;
 

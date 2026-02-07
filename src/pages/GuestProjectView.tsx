@@ -551,7 +551,7 @@ function PageFooter() {
     <div className="border-t border-slate-200 bg-white">
       <div className="mx-auto max-w-7xl px-4 py-4">
         <p className="text-center text-xs text-slate-400">
-          Powered by StructureWorks
+          Powered by ProjectWorks
         </p>
       </div>
     </div>

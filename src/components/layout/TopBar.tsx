@@ -24,7 +24,7 @@ export function TopBar() {
   const { data: unreadCount = 0 } = useUnreadCount(user?.uid);
 
   const isHome = location.pathname === '/';
-  const pageTitle = pageTitles[location.pathname] || 'StructureWorks';
+  const pageTitle = pageTitles[location.pathname] || 'ProjectWorks';
 
   return (
     <header
@@ -43,7 +43,7 @@ export function TopBar() {
               <HardHat className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
             </div>
             <span className="text-lg font-bold tracking-tight text-white">
-              StructureWorks
+              ProjectWorks
             </span>
           </div>
         ) : (

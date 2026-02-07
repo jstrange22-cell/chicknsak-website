@@ -16,12 +16,19 @@ dist
 .env.production
 .env.*.local
 
+# Deploy script (contains SFTP credentials)
+deploy.py
+
 # Windows reserved file
 nul
 NUL
 
 # Debug logs
 debug_log.md
+
+# Capacitor native platforms
+android
+ios
 dist-ssr
 *.local
 

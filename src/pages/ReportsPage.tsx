@@ -9,6 +9,11 @@ import {
   Eye,
   EyeOff,
   Filter,
+  Camera,
+  ClipboardCheck,
+  Shield,
+  TrendingUp,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -357,13 +362,79 @@ export default function ReportsPage() {
     }
   };
 
+  // Report templates for quick creation
+  const reportTemplates = [
+    {
+      id: 'daily-progress',
+      name: 'Daily Progress Report',
+      type: 'progress' as ReportType,
+      description: 'Track daily work progress with photos and notes',
+      icon: TrendingUp,
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+      iconBg: 'bg-emerald-100',
+    },
+    {
+      id: 'photo-documentation',
+      name: 'Photo Documentation',
+      type: 'photo' as ReportType,
+      description: 'Before/after photos organized by project area',
+      icon: Camera,
+      color: 'bg-blue-50 text-blue-600 border-blue-200',
+      iconBg: 'bg-blue-100',
+    },
+    {
+      id: 'inspection',
+      name: 'Inspection Report',
+      type: 'inspection' as ReportType,
+      description: 'Detailed site inspection with checklist items',
+      icon: ClipboardCheck,
+      color: 'bg-purple-50 text-purple-600 border-purple-200',
+      iconBg: 'bg-purple-100',
+    },
+    {
+      id: 'insurance',
+      name: 'Insurance Documentation',
+      type: 'insurance' as ReportType,
+      description: 'Comprehensive documentation for insurance claims',
+      icon: Shield,
+      color: 'bg-amber-50 text-amber-600 border-amber-200',
+      iconBg: 'bg-amber-100',
+    },
+  ];
+
+  const handleCreateFromTemplate = async (template: typeof reportTemplates[0]) => {
+    if (!profile?.companyId || !user?.uid) return;
+
+    try {
+      await addDoc(collection(db, 'reports'), {
+        companyId: profile.companyId,
+        projectId: '',
+        name: template.name,
+        reportType: template.type,
+        coverTitle: '',
+        includeLogo: true,
+        sections: [],
+        pdfUrl: '',
+        shareLink: '',
+        shareToken: crypto.randomUUID(),
+        status: 'draft' as ReportStatus,
+        createdBy: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      fetchReports();
+    } catch (err) {
+      console.error('Failed to create report from template:', err);
+    }
+  };
+
   return (
-    <div className="flex min-h-[calc(100vh-48px)] flex-col">
+    <div className="flex min-h-[calc(100vh-48px)] flex-col px-1 md:px-0">
       {/* Page Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-slate-900">Reports</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Reports</h1>
             {!isLoading && (
               <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                 {reports.length}
@@ -374,10 +445,36 @@ export default function ReportsPage() {
             Analyze project performance and generate detailed reports.
           </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
+        <Button onClick={() => setShowCreateModal(true)} className="self-start sm:self-auto">
           <Plus className="h-4 w-4" />
           Create Report
         </Button>
+      </div>
+
+      {/* Report Templates */}
+      <div className="mb-6">
+        <h2 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <FileText className="h-4 w-4 text-slate-400" />
+          Quick Templates
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {reportTemplates.map((template) => (
+            <button
+              key={template.id}
+              onClick={() => handleCreateFromTemplate(template)}
+              className={cn(
+                'flex flex-col items-start p-3 md:p-4 rounded-xl border text-left transition-all hover:shadow-md active:scale-[0.98] touch-manipulation',
+                template.color
+              )}
+            >
+              <div className={cn('p-2 rounded-lg mb-2', template.iconBg)}>
+                <template.icon className="h-5 w-5" />
+              </div>
+              <p className="text-sm font-semibold leading-tight">{template.name}</p>
+              <p className="text-[11px] md:text-xs mt-1 opacity-70 leading-snug line-clamp-2">{template.description}</p>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Filters Bar */}

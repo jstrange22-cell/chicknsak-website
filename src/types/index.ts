@@ -49,7 +49,7 @@ export interface NotificationSettings {
 }
 
 // Project status
-export type ProjectStatus = 'active' | 'completed' | 'archived' | 'on_hold';
+export type ProjectStatus = 'active' | 'completed' | 'archived' | 'on_hold' | 'lead';
 
 // Project types
 export type ProjectType = 
@@ -753,6 +753,107 @@ export interface ProjectTemplate extends BaseDocument {
   description?: string;
   defaultProjectType?: ProjectType;
   defaultFields: Partial<Pick<Project, 'addressState' | 'projectType' | 'metadata'>>;
+  createdBy: string;
+}
+
+// ============================================================
+// VOICE NOTES
+// ============================================================
+
+export interface VoiceNote {
+  id: string;
+  companyId: string;
+  userId: string;
+  title: string;
+  audioUrl?: string;
+  transcription?: string;
+  duration: number; // seconds
+  projectId?: string;
+  tags: string[];
+  isTranscribing: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============================================================
+// ESTIMATES (Room-Level Hierarchy)
+// ============================================================
+
+export type EstimateStatus = 'draft' | 'pending' | 'approved' | 'sent' | 'archived';
+
+/** Line item within an estimate area/category */
+export interface EstimateLineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string; // SF, LF, EA, CY, HR, etc.
+  unitCost: number; // in cents for precision
+  totalCost: number; // quantity * unitCost (cents)
+  category: string; // CSI division or custom (e.g., "Framing", "Electrical")
+  notes?: string;
+  /** Override global markup % for this line item */
+  markupOverride?: number;
+  /** Source of cost data */
+  costSource?: 'manual' | 'rsmeans' | '1build' | 'assembly' | 'ai_estimated';
+}
+
+/** Area/Room within a project estimate (Room-Level Hierarchy) */
+export interface EstimateArea {
+  id: string;
+  name: string; // e.g., "Kitchen", "Master Bath", "Exterior"
+  description?: string;
+  lineItems: EstimateLineItem[];
+  subtotalCents: number;
+}
+
+/** Below-the-line markup configuration */
+export interface EstimateMarkup {
+  profitPercent: number; // e.g., 10 for 10%
+  overheadPercent: number; // e.g., 8 for 8%
+  taxPercent: number; // e.g., 9.25 for 9.25%
+  contingencyPercent: number; // e.g., 5 for 5%
+}
+
+/** Full estimate document */
+export interface Estimate extends BaseDocument {
+  companyId: string;
+  projectId: string;
+  name: string;
+  description?: string;
+  status: EstimateStatus;
+  areas: EstimateArea[];
+  markup: EstimateMarkup;
+  /** Computed totals (stored for quick access) */
+  hardCostsCents: number; // sum of all line item totalCost
+  profitCents: number;
+  overheadCents: number;
+  taxCents: number;
+  contingencyCents: number;
+  totalPriceCents: number;
+  /** Gross Margin = (Total Price - Hard Costs) / Total Price */
+  grossMarginPercent: number;
+  /** ZIP code used for localized cost multiplier */
+  zipCode?: string;
+  costMultiplier?: number; // e.g., 0.92 for Knoxville, 1.45 for NYC
+  /** JobTread sync reference */
+  jobtreadEstimateId?: string;
+  /** QuickBooks sync reference */
+  quickbooksEstimateId?: string;
+  createdBy: string;
+}
+
+/** Change Order linked to a locked estimate */
+export interface ChangeOrder extends BaseDocument {
+  companyId: string;
+  projectId: string;
+  estimateId: string; // parent locked estimate
+  name: string;
+  description?: string;
+  status: 'draft' | 'pending' | 'approved' | 'rejected';
+  lineItems: EstimateLineItem[];
+  totalCents: number;
+  approvedBy?: string;
+  approvedAt?: Timestamp;
   createdBy: string;
 }
 

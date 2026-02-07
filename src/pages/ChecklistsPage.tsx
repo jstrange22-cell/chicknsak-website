@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   Plus,
   X,
@@ -11,6 +11,7 @@ import {
   Circle,
   Layers,
   Hash,
+  Mic,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -37,11 +38,13 @@ import type {
   User as UserType,
 } from '@/types';
 
+const VoiceNotesPage = lazy(() => import('@/pages/VoiceNotesPage'));
+
 // ============================================================================
 // Helpers
 // ============================================================================
 
-type Tab = 'templates' | 'checklists';
+type Tab = 'templates' | 'checklists' | 'voice-notes';
 
 const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
   inspection: 'Inspection',
@@ -717,7 +720,10 @@ export default function ChecklistsPage() {
 
   // Fetch templates
   const fetchTemplates = async () => {
-    if (!profile?.companyId) return;
+    if (!profile?.companyId) {
+      setIsLoadingTemplates(false);
+      return;
+    }
 
     try {
       const q = query(
@@ -770,7 +776,6 @@ export default function ChecklistsPage() {
   // Fetch projects
   const fetchProjects = async () => {
     if (!profile?.companyId) return;
-
     try {
       const q = query(
         collection(db, 'projects'),
@@ -892,12 +897,12 @@ export default function ChecklistsPage() {
             <Plus className="h-4 w-4" />
             Create Template
           </Button>
-        ) : (
+        ) : activeTab === 'checklists' ? (
           <Button onClick={() => setShowStartChecklistModal(true)}>
             <Plus className="h-4 w-4" />
             Start Checklist
           </Button>
-        )}
+        ) : null}
       </div>
 
       {/* Tab bar */}
@@ -946,6 +951,18 @@ export default function ChecklistsPage() {
             {checklists.length}
           </span>
         </button>
+        <button
+          onClick={() => setActiveTab('voice-notes')}
+          className={cn(
+            'flex items-center gap-2 border-b-2 px-4 pb-3 text-sm font-medium transition-colors',
+            activeTab === 'voice-notes'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700',
+          )}
+        >
+          <Mic className="h-4 w-4" />
+          Voice Notes
+        </button>
       </div>
 
       {/* Tab content */}
@@ -957,7 +974,7 @@ export default function ChecklistsPage() {
           togglingId={togglingId}
           onOpenCreate={() => setShowCreateTemplateModal(true)}
         />
-      ) : (
+      ) : activeTab === 'checklists' ? (
         <ChecklistsTab
           checklists={checklists}
           isLoading={isLoadingChecklists}
@@ -967,6 +984,14 @@ export default function ChecklistsPage() {
           completingId={completingId}
           onOpenStart={() => setShowStartChecklistModal(true)}
         />
+      ) : (
+        <Suspense fallback={
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          </div>
+        }>
+          <VoiceNotesPage />
+        </Suspense>
       )}
 
       {/* Modals */}

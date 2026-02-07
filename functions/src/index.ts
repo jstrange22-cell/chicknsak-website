@@ -1,5 +1,5 @@
 /**
- * Firebase Cloud Functions for StructureWorks Field
+ * Firebase Cloud Functions for ProjectWorks
  *
  * Replaces the previous Supabase Edge Functions with native Firebase
  * Cloud Functions (2nd gen where possible, v1 for Firestore triggers).
@@ -81,7 +81,7 @@ function hmacSha256(secret: string, payload: string): string {
 // ============================================================================
 
 /**
- * Handles the two-step OAuth2 flow for connecting a StructureWorks Field
+ * Handles the two-step OAuth2 flow for connecting a ProjectWorks
  * company to their JobTread account.
  *
  * Query parameters:
@@ -570,6 +570,96 @@ async function processSyncItem(
  *     - companyId: string
  *     - ...
  */
+// ============================================================================
+// 5. jobtreadProxy  --  CORS proxy for browser → JobTread Pave API (2nd gen)
+// ============================================================================
+
+/**
+ * Proxies Pave queries from the browser to the JobTread API.
+ *
+ * The JobTread API at https://api.jobtread.com/pave does not include CORS
+ * headers, so browser-originated requests fail. This function accepts the
+ * same JSON body and Authorization header, forwards the request server-side,
+ * and returns the response with appropriate CORS headers.
+ *
+ * Usage from the client:
+ *   POST /jobtreadProxy
+ *   Headers: Authorization: Bearer <grant-key>
+ *   Body:    { "query": { ... } }
+ */
+export const jobtreadProxy = onRequest(
+  {
+    region: "us-central1",
+    cors: true,
+  },
+  async (req, res) => {
+    // Handle CORS preflight
+    if (req.method === "OPTIONS") {
+      res.set("Access-Control-Allow-Origin", "*");
+      res.set(
+        "Access-Control-Allow-Headers",
+        "authorization, content-type"
+      );
+      res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.set("Access-Control-Max-Age", "86400");
+      res.status(204).send("");
+      return;
+    }
+
+    if (req.method !== "POST") {
+      jsonResponse(res, { error: "Method not allowed" }, 405);
+      return;
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      jsonResponse(
+        res,
+        { error: "Missing Authorization header" },
+        401
+      );
+      return;
+    }
+
+    try {
+      const response = await fetch("https://api.jobtread.com/pave", {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+        },
+        body:
+          typeof req.body === "string"
+            ? req.body
+            : JSON.stringify(req.body),
+      });
+
+      const data = await response.text();
+
+      res.set("Access-Control-Allow-Origin", "*");
+      res.status(response.status);
+      res.set("Content-Type", response.headers.get("content-type") || "application/json");
+      res.send(data);
+    } catch (error) {
+      console.error("jobtreadProxy error:", error);
+      jsonResponse(
+        res,
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Proxy request failed",
+        },
+        502
+      );
+    }
+  }
+);
+
+// ============================================================================
+// 6. onPhotoCreated  --  Firestore trigger (v1, onCreate)
+// ============================================================================
+
 export const onPhotoCreated = functions.firestore
   .document("photos/{photoId}")
   .onCreate(async (snapshot, context) => {

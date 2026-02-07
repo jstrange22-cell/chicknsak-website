@@ -237,16 +237,16 @@ export default function Index() {
   // ---- Render ----
 
   return (
-    <div className="pb-28">
+    <div className="pb-28 md:pb-8">
       {/* ================================================================
           DARK HERO HEADER
           ================================================================ */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 pt-6 pb-20 -mx-0">
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 md:px-8 pt-6 pb-20 md:pb-24 md:rounded-2xl md:-mx-0">
         <div className="flex items-center gap-2.5 mb-1">
           <GreetingIcon className="h-5 w-5 text-amber-400" />
           <span className="text-amber-400/90 text-sm font-medium">{greetingText}</span>
         </div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">
+        <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
           {firstName}
         </h1>
 
@@ -291,9 +291,9 @@ export default function Index() {
       {/* ================================================================
           QUICK ACTIONS -- overlapping the header
           ================================================================ */}
-      <div className="px-5 -mt-12">
-        <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-4">
-          <div className="flex items-center justify-around">
+      <div className="px-5 md:px-8 -mt-12 md:-mt-16 max-w-5xl">
+        <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-4 md:p-6">
+          <div className="flex items-center justify-around md:justify-start md:gap-10">
             {/* CAMERA -- hero action */}
             <Link
               to="/camera"
@@ -347,10 +347,13 @@ export default function Index() {
       </div>
 
       {/* ================================================================
-          RECENT PROJECTS -- horizontal scroll with cover photos
+          RECENT PROJECTS + ACTIVITY -- side by side on desktop
           ================================================================ */}
-      <div className="mt-7">
-        <div className="flex items-center justify-between px-5 mb-3">
+      <div className="md:flex md:gap-6 md:px-8 md:mt-8">
+
+      {/* Recent Projects */}
+      <div className="mt-7 md:mt-0 md:flex-1">
+        <div className="flex items-center justify-between px-5 md:px-0 mb-3">
           <h2 className="text-lg font-bold text-slate-900">
             Recent Projects
           </h2>
@@ -364,11 +367,11 @@ export default function Index() {
         </div>
 
         {projectsLoading ? (
-          <div className="flex gap-3 overflow-x-auto pb-2 px-5 scrollbar-hide">
+          <div className="flex gap-3 overflow-x-auto pb-2 px-5 md:px-0 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="w-48 shrink-0 rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden animate-pulse"
+                className="w-48 md:w-auto shrink-0 md:shrink rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden animate-pulse"
               >
                 <div className="h-28 bg-slate-100" />
                 <div className="p-3 space-y-2">
@@ -379,12 +382,12 @@ export default function Index() {
             ))}
           </div>
         ) : recentProjects && recentProjects.length > 0 ? (
-          <div className="flex gap-3 overflow-x-auto pb-2 px-5 scrollbar-hide">
+          <div className="flex gap-3 overflow-x-auto pb-2 px-5 md:px-0 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible">
             {recentProjects.map((project) => (
               <Link
                 key={project.id}
                 to={`/projects/${project.id}`}
-                className="w-48 shrink-0 rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden hover:shadow-lg transition-shadow active:scale-[0.98] transition-transform"
+                className="w-48 md:w-auto shrink-0 md:shrink rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden hover:shadow-lg transition-shadow active:scale-[0.98] transition-transform"
               >
                 {/* Cover photo area */}
                 <div
@@ -425,7 +428,7 @@ export default function Index() {
           </div>
         ) : (
           /* Empty state */
-          <div className="mx-5">
+          <div className="mx-5 md:mx-0">
             <Card className="border-dashed border-2 border-slate-200 shadow-none bg-slate-50/50">
               <CardContent className="py-10 text-center">
                 <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
@@ -453,7 +456,7 @@ export default function Index() {
       {/* ================================================================
           ACTIVITY FEED -- photo-rich
           ================================================================ */}
-      <div className="mt-7 px-5">
+      <div className="mt-7 md:mt-0 px-5 md:px-0 md:w-[380px] md:flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold text-slate-900">
             Activity
@@ -501,6 +504,8 @@ export default function Index() {
           </Card>
         )}
       </div>
+
+      </div>{/* end md:flex wrapper */}
     </div>
   );
 }

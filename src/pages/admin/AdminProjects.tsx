@@ -26,6 +26,7 @@ import type { ProjectStatus } from '@/types';
 
 const statusOptions: { value: ProjectStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All Statuses' },
+  { value: 'lead', label: 'Lead' },
   { value: 'active', label: 'Active' },
   { value: 'completed', label: 'Completed' },
   { value: 'on_hold', label: 'On Hold' },
@@ -33,6 +34,7 @@ const statusOptions: { value: ProjectStatus | 'all'; label: string }[] = [
 ];
 
 const statusConfig: Record<ProjectStatus, { label: string; classes: string }> = {
+  lead: { label: 'Lead', classes: 'bg-purple-100 text-purple-700' },
   active: { label: 'Active', classes: 'bg-blue-100 text-blue-700' },
   completed: { label: 'Completed', classes: 'bg-emerald-100 text-emerald-700' },
   on_hold: { label: 'On Hold', classes: 'bg-amber-100 text-amber-700' },
@@ -221,6 +223,7 @@ export default function AdminProjects() {
               onChange={(e) => setBulkStatus(e.target.value as ProjectStatus)}
               className="h-8 rounded-md border border-blue-200 bg-white px-2 text-sm"
             >
+              <option value="lead">Lead</option>
               <option value="active">Active</option>
               <option value="completed">Completed</option>
               <option value="on_hold">On Hold</option>
@@ -314,6 +317,7 @@ export default function AdminProjects() {
                           statusConfig[project.status].classes,
                         )}
                       >
+                        <option value="lead">Lead</option>
                         <option value="active">Active</option>
                         <option value="completed">Completed</option>
                         <option value="on_hold">On Hold</option>

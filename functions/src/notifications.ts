@@ -1,5 +1,5 @@
 /**
- * Push Notification Cloud Functions for StructureWorks Field
+ * Push Notification Cloud Functions for ProjectWorks
  *
  * Firestore-triggered function that sends FCM push notifications
  * when new messages are created in channels.
