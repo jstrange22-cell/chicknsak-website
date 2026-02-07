@@ -18,7 +18,7 @@ import { useAuthContext } from '@/components/auth/AuthProvider';
 import { useProjects } from '@/hooks/useProjects';
 import { cn } from '@/lib/utils';
 import { logActivity } from '@/lib/activityLogger';
-import type { Project, ProjectStatus } from '@/types';
+import type { ProjectStatus } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Configuration

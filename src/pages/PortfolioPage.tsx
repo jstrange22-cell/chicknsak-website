@@ -21,7 +21,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   doc,
   addDoc,
@@ -238,7 +237,7 @@ function DeleteConfirmModal({ isOpen, showcaseTitle, onClose, onConfirm, isDelet
 // ---------------------------------------------------------------------------
 
 export default function PortfolioPage() {
-  const { profile, user } = useAuthContext();
+  const { profile } = useAuthContext();
 
   // Data
   const [showcases, setShowcases] = useState<Showcase[]>([]);

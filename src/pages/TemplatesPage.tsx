@@ -43,7 +43,6 @@ import type {
   ReportLayout,
   ProjectTemplate,
   ChecklistTemplate,
-  ReportTemplate,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -408,7 +407,7 @@ function ChecklistTemplatesTab() {
     reset,
     formState: { errors },
   } = useForm<ChecklistTemplateForm>({
-    resolver: zodResolver(checklistTemplateSchema),
+    resolver: zodResolver(checklistTemplateSchema) as any,
     defaultValues: {
       name: '',
       description: '',
@@ -835,7 +834,7 @@ function ReportTemplatesTab() {
     reset,
     formState: { errors },
   } = useForm<ReportTemplateForm>({
-    resolver: zodResolver(reportTemplateSchema),
+    resolver: zodResolver(reportTemplateSchema) as any,
     defaultValues: {
       name: '',
       reportType: 'photo',

@@ -27,7 +27,7 @@ const menuItems: { id: SettingsSection; label: string; icon: React.ElementType; 
 export default function Settings() {
   const { profile } = useAuthContext();
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   // Read initial tab from URL search params (e.g. /settings?tab=company)
   const tabParam = searchParams.get('tab') as SettingsSection | null;
