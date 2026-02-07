@@ -99,8 +99,8 @@ function BarChartRow({
   const percentage = maxValue > 0 ? Math.round((value / maxValue) * 100) : 0;
 
   return (
-    <div className="flex items-center gap-3 py-2">
-      <span className="text-sm text-slate-600 w-28 truncate shrink-0">
+    <div className="flex items-center gap-2 md:gap-3 py-2">
+      <span className="text-sm text-slate-600 w-20 md:w-28 truncate shrink-0">
         {label}
       </span>
       <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
@@ -490,7 +490,7 @@ export default function Dashboard() {
   // ---- Render ----
 
   return (
-    <div className="p-1 md:p-4 space-y-6 pb-24 md:pb-8">
+    <div className="px-3 py-2 md:p-4 space-y-5 md:space-y-6 pb-24 md:pb-8">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Admin Dashboard</h1>
@@ -498,7 +498,7 @@ export default function Dashboard() {
       </div>
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-3">
         <OverviewCard
           title="Total Projects"
           value={totalProjects ?? 0}

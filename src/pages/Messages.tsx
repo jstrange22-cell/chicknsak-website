@@ -31,11 +31,11 @@ export default function Messages() {
 
   // ---------- Tab bar ----------
   const TabBar = () => (
-    <div className="flex border-b border-slate-200 bg-white px-4">
+    <div className="flex border-b border-slate-200 bg-white px-4 overflow-x-auto scrollbar-hide">
       <button
         onClick={() => { setActiveTab('channels'); setSelectedChannelId(null); }}
         className={cn(
-          'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+          'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors shrink-0 min-h-[44px]',
           activeTab === 'channels'
             ? 'border-blue-500 text-blue-600'
             : 'border-transparent text-slate-500 hover:text-slate-700',
@@ -47,7 +47,7 @@ export default function Messages() {
       <button
         onClick={() => setActiveTab('users')}
         className={cn(
-          'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+          'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors shrink-0 min-h-[44px]',
           activeTab === 'users'
             ? 'border-blue-500 text-blue-600'
             : 'border-transparent text-slate-500 hover:text-slate-700',
@@ -59,14 +59,14 @@ export default function Messages() {
       <button
         onClick={() => setActiveTab('user-groups')}
         className={cn(
-          'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+          'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors shrink-0 min-h-[44px]',
           activeTab === 'user-groups'
             ? 'border-blue-500 text-blue-600'
             : 'border-transparent text-slate-500 hover:text-slate-700',
         )}
       >
         <UsersRound className="h-4 w-4" />
-        User Groups
+        Groups
       </button>
     </div>
   );

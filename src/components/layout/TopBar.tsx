@@ -58,7 +58,7 @@ export function TopBar() {
           <button
             onClick={() => navigate('/notifications')}
             className={cn(
-              'relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
+              'relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
               isHome
                 ? 'hover:bg-white/10 active:bg-white/20'
                 : 'hover:bg-slate-100 active:bg-slate-200'
@@ -82,7 +82,7 @@ export function TopBar() {
           <button
             onClick={() => navigate('/settings')}
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-full transition-all',
+              'flex h-11 w-11 items-center justify-center rounded-full transition-all',
               isHome
                 ? 'bg-slate-700/60 hover:bg-slate-700 ring-1 ring-slate-600/50'
                 : 'bg-slate-100 hover:bg-slate-200 ring-1 ring-slate-200'

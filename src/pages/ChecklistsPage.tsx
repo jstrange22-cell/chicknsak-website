@@ -161,18 +161,18 @@ function CreateTemplateModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="mx-4 w-full max-w-lg rounded-xl bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
+      <div className="w-full sm:mx-4 sm:max-w-lg rounded-t-xl sm:rounded-xl bg-white shadow-xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 sm:px-6 py-4 sticky top-0 bg-white z-10">
           <h2 className="text-lg font-semibold text-slate-900">Create Template</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 px-5 sm:px-6 py-5">
           {/* Name */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -324,18 +324,18 @@ function StartChecklistModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="mx-4 w-full max-w-lg rounded-xl bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
+      <div className="w-full sm:mx-4 sm:max-w-lg rounded-t-xl sm:rounded-xl bg-white shadow-xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 sm:px-6 py-4 sticky top-0 bg-white z-10">
           <h2 className="text-lg font-semibold text-slate-900">Start Checklist</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="space-y-5 px-6 py-5">
+        <div className="space-y-5 px-5 sm:px-6 py-5">
           {/* Template */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -885,20 +885,20 @@ export default function ChecklistsPage() {
   return (
     <div className="flex min-h-[calc(100vh-48px)] flex-col">
       {/* Page Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Checklists</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Checklists</h1>
+          <p className="mt-1 text-sm text-slate-500 hidden sm:block">
             Build templates and track checklist progress across all projects.
           </p>
         </div>
         {activeTab === 'templates' ? (
-          <Button onClick={() => setShowCreateTemplateModal(true)}>
+          <Button className="w-full sm:w-auto shrink-0" onClick={() => setShowCreateTemplateModal(true)}>
             <Plus className="h-4 w-4" />
             Create Template
           </Button>
         ) : activeTab === 'checklists' ? (
-          <Button onClick={() => setShowStartChecklistModal(true)}>
+          <Button className="w-full sm:w-auto shrink-0" onClick={() => setShowStartChecklistModal(true)}>
             <Plus className="h-4 w-4" />
             Start Checklist
           </Button>
@@ -906,11 +906,11 @@ export default function ChecklistsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="mb-6 flex border-b border-slate-200">
+      <div className="mb-4 md:mb-6 flex border-b border-slate-200 overflow-x-auto scrollbar-hide">
         <button
           onClick={() => setActiveTab('templates')}
           className={cn(
-            'flex items-center gap-2 border-b-2 px-4 pb-3 text-sm font-medium transition-colors',
+            'flex items-center gap-1.5 border-b-2 px-3 md:px-4 pb-3 text-sm font-medium transition-colors shrink-0 min-h-[44px]',
             activeTab === 'templates'
               ? 'border-blue-500 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-700',
@@ -920,7 +920,7 @@ export default function ChecklistsPage() {
           Templates
           <span
             className={cn(
-              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+              'inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium',
               activeTab === 'templates'
                 ? 'bg-blue-100 text-blue-600'
                 : 'bg-slate-100 text-slate-500',
@@ -932,17 +932,17 @@ export default function ChecklistsPage() {
         <button
           onClick={() => setActiveTab('checklists')}
           className={cn(
-            'flex items-center gap-2 border-b-2 px-4 pb-3 text-sm font-medium transition-colors',
+            'flex items-center gap-1.5 border-b-2 px-3 md:px-4 pb-3 text-sm font-medium transition-colors shrink-0 min-h-[44px]',
             activeTab === 'checklists'
               ? 'border-blue-500 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-700',
           )}
         >
           <ListChecks className="h-4 w-4" />
-          Active Checklists
+          <span className="hidden sm:inline">Active </span>Checklists
           <span
             className={cn(
-              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+              'inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium',
               activeTab === 'checklists'
                 ? 'bg-blue-100 text-blue-600'
                 : 'bg-slate-100 text-slate-500',
@@ -954,7 +954,7 @@ export default function ChecklistsPage() {
         <button
           onClick={() => setActiveTab('voice-notes')}
           className={cn(
-            'flex items-center gap-2 border-b-2 px-4 pb-3 text-sm font-medium transition-colors',
+            'flex items-center gap-1.5 border-b-2 px-3 md:px-4 pb-3 text-sm font-medium transition-colors shrink-0 min-h-[44px]',
             activeTab === 'voice-notes'
               ? 'border-blue-500 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-700',

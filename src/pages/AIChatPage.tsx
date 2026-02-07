@@ -572,9 +572,9 @@ export default function AIChatPage() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] md:h-[calc(100vh-1.5rem)]">
+    <div className="flex flex-col h-[calc(100vh-8.5rem)] md:h-[calc(100vh-1.5rem)]">
       {/* Header */}
-      <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
+      <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
@@ -584,7 +584,7 @@ export default function AIChatPage() {
               <h1 className="text-base font-bold text-slate-900 leading-tight">
                 JobMate
               </h1>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 hidden sm:block">
                 Estimates &bull; Takeoffs &bull; Codes &bull; Financials &bull; More
               </p>
             </div>
@@ -593,8 +593,8 @@ export default function AIChatPage() {
           <div className="flex items-center gap-2">
             {/* Mode indicator */}
             {activeMode !== 'general' && (
-              <span className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
-                <Sparkles className="h-3.5 w-3.5" />
+              <span className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                <Sparkles className="h-3 w-3" />
                 {quickActions.find((a) => a.id === activeMode)?.label || 'General'}
               </span>
             )}
@@ -603,10 +603,10 @@ export default function AIChatPage() {
             {hasMessages && (
               <button
                 onClick={clearChat}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                 title="Clear chat"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4.5 w-4.5" />
               </button>
             )}
           </div>
@@ -614,14 +614,14 @@ export default function AIChatPage() {
 
         {/* Quick Action Chips (shown when there are messages) */}
         {hasMessages && (
-          <div className="flex gap-1.5 mt-2.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+          <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
             {quickActions.map((action) => (
               <button
                 key={action.id}
                 onClick={() => handleQuickAction(action)}
                 disabled={isLoading}
                 className={cn(
-                  'flex items-center gap-1.5 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-all touch-manipulation',
+                  'flex items-center gap-1.5 shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all touch-manipulation min-h-[36px]',
                   activeMode === action.id
                     ? action.color
                     : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700',
@@ -637,7 +637,7 @@ export default function AIChatPage() {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-slate-50">
+      <div className="flex-1 overflow-y-auto px-3 md:px-4 py-4 space-y-4 bg-slate-50">
         {!hasMessages ? (
           <WelcomeScreen onQuickAction={handleQuickAction} />
         ) : (
@@ -652,7 +652,7 @@ export default function AIChatPage() {
       </div>
 
       {/* Input Area */}
-      <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3">
+      <div className="shrink-0 border-t border-slate-200 bg-white px-3 md:px-4 py-2.5">
         <form onSubmit={handleSubmit} className="flex items-end gap-2">
           <div className="flex-1 relative">
             <textarea
@@ -667,12 +667,12 @@ export default function AIChatPage() {
                   ? 'Describe the work room by room...'
                   : activeMode === 'takeoff'
                   ? 'Enter dimensions or describe measurements...'
-                  : 'Ask JobMate about construction, codes, costs...'
+                  : 'Ask JobMate anything...'
               }
               rows={1}
               className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all touch-manipulation"
               style={{
-                minHeight: '42px',
+                minHeight: '44px',
                 maxHeight: '120px',
               }}
               onInput={(e) => {
@@ -687,7 +687,7 @@ export default function AIChatPage() {
             type="submit"
             disabled={!input.trim() || isLoading}
             className={cn(
-              'flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl transition-all touch-manipulation',
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all touch-manipulation',
               input.trim() && !isLoading
                 ? 'bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 shadow-sm shadow-amber-500/25'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -701,9 +701,9 @@ export default function AIChatPage() {
           </button>
         </form>
 
-        <p className="text-[10px] text-slate-400 mt-1.5 text-center">
+        <p className="text-[10px] text-slate-400 mt-1 text-center hidden sm:block">
           JobMate provides preliminary estimates and construction guidance.
-          Verify with qualified professionals. Connect API keys in Settings for live AI.
+          Verify with qualified professionals.
         </p>
       </div>
     </div>

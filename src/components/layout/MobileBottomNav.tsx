@@ -90,14 +90,14 @@ export function MobileBottomNav({ unreadCount = 0 }: { unreadCount?: number }) {
           <div className="h-1 w-10 rounded-full bg-slate-300" />
         </div>
 
-        <div className="px-5 pb-6 pt-2">
+        <div className="px-5 pb-6 pt-2 max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
               More
             </h2>
             <button
               onClick={() => setIsMoreOpen(false)}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 transition-colors"
             >
               <X className="h-4 w-4 text-slate-600" />
             </button>
