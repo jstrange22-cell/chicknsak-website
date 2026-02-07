@@ -49,11 +49,10 @@ const jobtreadWebhookSecret = defineSecret("JOBTREAD_WEBHOOK_SECRET");
 const JOBTREAD_AUTH_URL = "https://app.jobtread.com/oauth/authorize";
 const JOBTREAD_TOKEN_URL = "https://app.jobtread.com/oauth/token";
 const JOBTREAD_REDIRECT_URI =
-  "https://us-central1-jobmate-firebase.cloudfunctions.net/jobtreadAuth?action=callback";
+  "https://us-central1-projectworks-8b692.cloudfunctions.net/jobtreadAuth?action=callback";
 
 // After a successful OAuth callback, redirect the user back to the app.
-// Adjust this to your actual frontend URL.
-const APP_REDIRECT_URL = "https://jobmate-firebase.web.app/integrations";
+const APP_REDIRECT_URL = "https://gray-barracuda-245114.hostingersite.com/integrations";
 
 // ============================================================================
 // Helpers
