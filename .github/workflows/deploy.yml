@@ -1,0 +1,45 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: structureworks-field.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: structureworks-field
+          VITE_FIREBASE_STORAGE_BUCKET: structureworks-field.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '239800124339'
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: G-JWW0N1QM33
+
+      - name: Deploy to Hostinger via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 151.106.104.229
+          username: u959857201
+          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
+          port: 65002
+          source: 'dist/*'
+          target: '/home/u959857201/domains/gray-barracuda-245114.hostingersite.com/public_html'
+          strip_components: 1
+          rm: true
