@@ -33,9 +33,9 @@ export function useAuth() {
     error: null,
   });
 
-  // Fetch user profile from Firestore (with offline resilience)
+  // Fetch user profile from Firestore (with offline resilience + retry)
   // Also repairs legacy users who are missing companyId
-  const fetchProfile = useCallback(async (uid: string) => {
+  const fetchProfile = useCallback(async (uid: string): Promise<User | null> => {
     const ref = doc(db, 'users', uid);
 
     let profile: User | null = null;
@@ -52,21 +52,35 @@ export function useAuth() {
       // No cached doc, fall through to network
     }
 
-    // Try network with a timeout so the app doesn't hang forever
+    // Try network with retries + exponential backoff (critical for mobile)
     if (!profile) {
-      try {
-        const networkDoc = await Promise.race([
-          getDoc(ref),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Firestore timeout')), 8000)
-          ),
-        ]);
-        if (networkDoc.exists()) {
-          profile = { id: networkDoc.id, ...networkDoc.data() } as User;
+      const MAX_RETRIES = 3;
+      const BASE_TIMEOUT = 10000; // 10s first attempt
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          const timeout = BASE_TIMEOUT + attempt * 5000; // 10s, 15s, 20s
+          const networkDoc = await Promise.race([
+            getDoc(ref),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Firestore timeout')), timeout)
+            ),
+          ]);
+          if (networkDoc.exists()) {
+            profile = { id: networkDoc.id, ...networkDoc.data() } as User;
+            break; // Success — stop retrying
+          } else {
+            break; // Doc doesn't exist — no point retrying
+          }
+        } catch (error) {
+          console.warn(`Profile fetch attempt ${attempt + 1}/${MAX_RETRIES} failed:`, error);
+          if (attempt < MAX_RETRIES - 1) {
+            // Wait before retry: 1s, 2s
+            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          } else {
+            console.error('All profile fetch attempts exhausted');
+          }
         }
-      } catch (error) {
-        console.error('Error fetching profile:', error);
-        return null;
       }
     }
 
@@ -186,6 +200,41 @@ export function useAuth() {
 
     return () => unsubscribe();
   }, [fetchProfile]);
+
+  // Periodic retry: if user is authenticated but profile is null (mobile network issue),
+  // keep retrying every 5 seconds until profile loads
+  useEffect(() => {
+    if (!state.user || state.profile) return; // Only retry if user exists but profile doesn't
+    if (state.isLoading) return; // Don't retry while initial load is in progress
+
+    let cancelled = false;
+    let retryCount = 0;
+    const MAX_BACKGROUND_RETRIES = 6; // Try for 30 seconds total
+
+    const retry = async () => {
+      if (cancelled || retryCount >= MAX_BACKGROUND_RETRIES) return;
+      retryCount++;
+      console.log(`Background profile retry ${retryCount}/${MAX_BACKGROUND_RETRIES}...`);
+
+      const profile = await fetchProfile(state.user!.uid);
+      if (profile && !cancelled) {
+        setState((prev) => ({ ...prev, profile }));
+        return; // Success — stop retrying
+      }
+
+      if (!cancelled && retryCount < MAX_BACKGROUND_RETRIES) {
+        setTimeout(retry, 5000);
+      }
+    };
+
+    // Start first retry after 3 seconds
+    const timer = setTimeout(retry, 3000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [state.user, state.profile, state.isLoading, fetchProfile]);
 
   // Sign up with email/password
   const signUp = useCallback(

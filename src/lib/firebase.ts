@@ -4,6 +4,7 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  persistentSingleTabManager,
   connectFirestoreEmulator,
 } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
@@ -11,6 +12,7 @@ import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getAnalytics } from 'firebase/analytics';
 import { getMessaging, isSupported as isMessagingSupported } from 'firebase/messaging';
 import type { Messaging } from 'firebase/messaging';
+import { Capacitor } from '@capacitor/core';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -31,9 +33,14 @@ export const auth = getAuth(app);
 // Initialize Firestore with persistent IndexedDB cache for offline support.
 // This ensures projects, photos, and other data are available on mobile
 // even when the network is flaky or unavailable.
+// Use singleTabManager on native Capacitor (WebView doesn't support multi-tab
+// SharedWorker and persistentMultipleTabManager can silently fail, breaking cache).
+const isNative = Capacitor.isNativePlatform();
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
+    tabManager: isNative
+      ? persistentSingleTabManager({ forceOwnership: true })
+      : persistentMultipleTabManager(),
   }),
 });
 
