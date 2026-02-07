@@ -24,12 +24,12 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: jobmate-firebase.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: jobmate-firebase
-          VITE_FIREBASE_STORAGE_BUCKET: jobmate-firebase.firebasestorage.app
+          VITE_FIREBASE_API_KEY: AIzaSyDE5QEsMWvtQwnhMk5PmWSM3k6p6tb_SnQ
+          VITE_FIREBASE_AUTH_DOMAIN: structureworks-field.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: structureworks-field
+          VITE_FIREBASE_STORAGE_BUCKET: structureworks-field.firebasestorage.app
           VITE_FIREBASE_MESSAGING_SENDER_ID: '239800124339'
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_APP_ID: '1:239800124339:web:43c2ca7fe394a6535001c6'
           VITE_FIREBASE_MEASUREMENT_ID: G-JWW0N1QM33
 
       - name: Deploy to Hostinger via SSH
