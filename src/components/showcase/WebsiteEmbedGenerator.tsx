@@ -21,10 +21,10 @@ export function WebsiteEmbedGenerator({
 
   const iframeCode = `<iframe src="${showcaseUrl}" width="100%" height="600" frameborder="0" style="border:none;border-radius:8px;" loading="lazy" title="${showcase.title}"></iframe>`;
 
-  const scriptCode = `<div id="structureworks-showcase-${showcase.slug}"></div>
+  const scriptCode = `<div id="jobmate-showcase-${showcase.slug}"></div>
 <script>
 (function() {
-  var container = document.getElementById('structureworks-showcase-${showcase.slug}');
+  var container = document.getElementById('jobmate-showcase-${showcase.slug}');
   if (!container) return;
   var iframe = document.createElement('iframe');
   iframe.src = '${showcaseUrl}';

@@ -45,7 +45,7 @@ interface ChatRequest {
 // System Prompt: JobMate Identity Layer
 // ---------------------------------------------------------------------------
 
-const IDENTITY_PROMPT = `You are **JobMate**, the AI construction estimating and management assistant built into ProjectWorks. You are a seasoned construction professional with 30+ years of experience spanning general contracting, estimating, project management, and all major trades. You hold a general contractor's license, certified building inspector credentials, and hands-on experience across electrical, plumbing, framing, finish carpentry, roofing, concrete, and HVAC.
+const IDENTITY_PROMPT = `You are **JobMate**, the AI construction estimating and management assistant built into JobMate. You are a seasoned construction professional with 30+ years of experience spanning general contracting, estimating, project management, and all major trades. You hold a general contractor's license, certified building inspector credentials, and hands-on experience across electrical, plumbing, framing, finish carpentry, roofing, concrete, and HVAC.
 
 You communicate like a trusted superintendent — direct, practical, clear. You use standard industry terminology naturally (OC, LF, SF, CY, GC, sub, CO, RFI, submittal, punchlist, MF, BDL, SQ).
 
@@ -232,7 +232,7 @@ const ESTIMATE_JSON_INSTRUCTION = `
 }
 \`\`\`
 
-This JSON will be parsed and stored as a structured estimate in ProjectWorks and can be synced to JobTread.`;
+This JSON will be parsed and stored as a structured estimate in JobMate and can be synced to JobTread.`;
 
 // ---------------------------------------------------------------------------
 // Prompt Assembly

@@ -1,5 +1,5 @@
 /**
- * Firebase Cloud Functions for ProjectWorks
+ * Firebase Cloud Functions for JobMate
  *
  * Replaces the previous Supabase Edge Functions with native Firebase
  * Cloud Functions (2nd gen where possible, v1 for Firestore triggers).
@@ -46,11 +46,11 @@ const jobtreadWebhookSecret = defineSecret("JOBTREAD_WEBHOOK_SECRET");
 const JOBTREAD_AUTH_URL = "https://app.jobtread.com/oauth/authorize";
 const JOBTREAD_TOKEN_URL = "https://app.jobtread.com/oauth/token";
 const JOBTREAD_REDIRECT_URI =
-  "https://us-central1-projectworks-8b692.cloudfunctions.net/jobtreadAuth?action=callback";
+  "https://us-central1-jobmate-firebase.cloudfunctions.net/jobtreadAuth?action=callback";
 
 // After a successful OAuth callback, redirect the user back to the app.
 // Adjust this to your actual frontend URL.
-const APP_REDIRECT_URL = "https://projectworks-8b692.web.app/integrations";
+const APP_REDIRECT_URL = "https://jobmate-firebase.web.app/integrations";
 
 // ============================================================================
 // Helpers
@@ -81,7 +81,7 @@ function hmacSha256(secret: string, payload: string): string {
 // ============================================================================
 
 /**
- * Handles the two-step OAuth2 flow for connecting a ProjectWorks
+ * Handles the two-step OAuth2 flow for connecting a JobMate
  * company to their JobTread account.
  *
  * Query parameters:

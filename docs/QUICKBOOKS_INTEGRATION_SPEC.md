@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-QuickBooks Online (QBO) provides a REST API that allows third-party apps to create invoices, record payments, manage customers, and sync financial data. This integration would allow ProjectWorks to push invoices/payment requests to QBO and pull payment status back.
+QuickBooks Online (QBO) provides a REST API that allows third-party apps to create invoices, record payments, manage customers, and sync financial data. This integration would allow JobMate to push invoices/payment requests to QBO and pull payment status back.
 
 ---
 
@@ -27,7 +27,7 @@ QuickBooks Online (QBO) provides a REST API that allows third-party apps to crea
 - **Token lifetime:** Access tokens expire in 1 hour; refresh tokens expire in 100 days
 - **Required:** Redirect URI registration in Intuit Developer portal
 
-### 2.3 OAuth Flow for ProjectWorks
+### 2.3 OAuth Flow for JobMate
 1. User clicks "Connect QuickBooks" in Settings > Integrations
 2. Redirect to Intuit OAuth consent screen
 3. User grants access, redirected back with authorization code
@@ -45,7 +45,7 @@ POST /v3/company/{realmId}/customer
 GET  /v3/company/{realmId}/customer/{id}
 GET  /v3/company/{realmId}/query?query=SELECT * FROM Customer WHERE ...
 ```
-- Create/update customers to match ProjectWorks project customers
+- Create/update customers to match JobMate project customers
 - Sync customer name, email, phone, address
 
 ### 3.2 Invoice Creation
@@ -53,7 +53,7 @@ GET  /v3/company/{realmId}/query?query=SELECT * FROM Customer WHERE ...
 POST /v3/company/{realmId}/invoice
 GET  /v3/company/{realmId}/invoice/{id}
 ```
-- Create invoices from ProjectWorks payment requests
+- Create invoices from JobMate payment requests
 - Map line items (description, quantity, amount)
 - Include project reference in memo/description field
 - Support for custom fields (project name, PO number)
@@ -64,7 +64,7 @@ POST /v3/company/{realmId}/payment
 GET  /v3/company/{realmId}/payment/{id}
 ```
 - Record payments received against invoices
-- Auto-update ProjectWorks payment status when QBO payment is recorded
+- Auto-update JobMate payment status when QBO payment is recorded
 
 ### 3.4 Estimate/Quote
 ```
@@ -134,10 +134,10 @@ const response = await fetch(
 - **Delivery:** HTTP POST to your registered endpoint
 - **Verification:** HMAC-SHA256 signature validation
 
-### 6.2 Use Cases for ProjectWorks
+### 6.2 Use Cases for JobMate
 - Listen for Payment events to auto-update payment request status
 - Listen for Invoice status changes (sent, viewed, paid)
-- Sync customer updates back to ProjectWorks
+- Sync customer updates back to JobMate
 
 ---
 
@@ -152,14 +152,14 @@ const response = await fetch(
 ### Phase 2: Invoice Sync (Push)
 1. Create Supabase edge function `quickbooks-sync`
 2. Add "Sync to QuickBooks" button on PaymentsPage
-3. Map ProjectWorks payment requests to QBO invoices
+3. Map JobMate payment requests to QBO invoices
 4. Create/update customers as needed
 5. Store QBO invoice ID in Firestore for reference
 
 ### Phase 3: Payment Status Sync (Pull)
 1. Register webhook endpoint for Payment events
 2. Create Supabase edge function `quickbooks-webhook`
-3. Auto-update ProjectWorks payment status when QBO payment recorded
+3. Auto-update JobMate payment status when QBO payment recorded
 4. Add last-synced timestamp and sync status indicators
 
 ### Phase 4: Estimate Sync
@@ -170,7 +170,7 @@ const response = await fetch(
 
 ## 8. Data Mapping
 
-| ProjectWorks Entity | QBO Entity | Sync Direction |
+| JobMate Entity | QBO Entity | Sync Direction |
 |---------------------|------------|----------------|
 | Payment Request | Invoice | Push to QBO |
 | Payment (paid status) | Payment | Pull from QBO |
