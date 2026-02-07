@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, User, HardHat } from 'lucide-react';
+import { Bell, User, HardHat, Menu } from 'lucide-react';
 import { useAuthContext } from '@/components/auth/AuthProvider';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { cn, getInitials } from '@/lib/utils';
@@ -15,9 +15,23 @@ const pageTitles: Record<string, string> = {
   '/search': 'Search',
   '/dashboard': 'Dashboard',
   '/settings': 'Settings',
+  '/checklists': 'Checklists',
+  '/reports': 'Reports',
+  '/payments': 'Payments',
+  '/map': 'Map',
+  '/ai-chat': 'JobMate',
+  '/integrations': 'Integrations',
+  '/templates': 'Templates',
+  '/reviews': 'Reviews',
+  '/portfolio': 'Portfolio',
+  '/admin': 'Admin Panel',
 };
 
-export function TopBar() {
+interface TopBarProps {
+  onMenuToggle: () => void;
+}
+
+export function TopBar({ onMenuToggle }: TopBarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile } = useAuthContext();
@@ -35,22 +49,44 @@ export function TopBar() {
           : 'bg-white/95 backdrop-blur-md border-b border-slate-200/80'
       )}
     >
-      <div className="flex h-full items-center justify-between px-4">
-        {/* Left: Logo on home, page title on sub-pages */}
-        {isHome ? (
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 shadow-sm shadow-blue-500/30">
-              <HardHat className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
+      <div className="flex h-full items-center justify-between px-3">
+        {/* Left: Hamburger Menu + Logo/Title */}
+        <div className="flex items-center gap-2">
+          {/* Hamburger Menu Button */}
+          <button
+            onClick={onMenuToggle}
+            className={cn(
+              'flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
+              isHome
+                ? 'hover:bg-white/10 active:bg-white/20'
+                : 'hover:bg-slate-100 active:bg-slate-200'
+            )}
+            aria-label="Open menu"
+          >
+            <Menu
+              className={cn(
+                'h-[22px] w-[22px] transition-colors',
+                isHome ? 'text-slate-300' : 'text-slate-600'
+              )}
+            />
+          </button>
+
+          {/* Logo on home, page title on sub-pages */}
+          {isHome ? (
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 shadow-sm shadow-blue-500/30">
+                <HardHat className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
+              </div>
+              <span className="text-lg font-bold tracking-tight text-white">
+                ProjectWorks
+              </span>
             </div>
-            <span className="text-lg font-bold tracking-tight text-white">
-              ProjectWorks
-            </span>
-          </div>
-        ) : (
-          <h1 className="text-lg font-semibold tracking-tight text-slate-900">
-            {pageTitle}
-          </h1>
-        )}
+          ) : (
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900">
+              {pageTitle}
+            </h1>
+          )}
+        </div>
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5">
