@@ -67,7 +67,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
+      gcTime: 1000 * 60 * 30,   // Keep cached data for 30 minutes
+      retry: 2,                  // Retry twice on failure (helps on mobile)
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+      refetchOnReconnect: true,  // Refresh when network comes back
     },
   },
 });

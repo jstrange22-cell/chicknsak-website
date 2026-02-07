@@ -418,14 +418,23 @@ export function resetMockCounters() {
 
 /**
  * Send a message to the JobMate AI assistant.
- * Falls back to high-quality mock responses when Cloud Functions are unavailable.
+ *
+ * Calls the `jobmateChat` Cloud Function which uses Claude (primary) or
+ * Gemini (fallback) to generate construction-specific AI responses.
+ *
+ * Only falls back to mock responses when the Cloud Function is completely
+ * unreachable (network error, function not deployed, etc.).
  */
 export async function sendJobMateMessage(
   request: JobMateChatRequest
 ): Promise<JobMateChatResponse> {
   // Try live API first via Firebase Cloud Functions
   try {
-    const jobmateChat = httpsCallable<Record<string, unknown>, Record<string, unknown>>(functions, 'jobmateChat');
+    const jobmateChat = httpsCallable<Record<string, unknown>, Record<string, unknown>>(
+      functions,
+      'jobmateChat',
+      { timeout: 120_000 } // 2 minute timeout for AI responses
+    );
     const result = await jobmateChat({
       message: request.message,
       mode: request.mode,
@@ -445,11 +454,29 @@ export async function sendJobMateMessage(
     }
 
     console.warn('[JobMate] Cloud function returned no content, falling back to mock');
-  } catch (err) {
-    console.warn('[JobMate] Cloud function call failed, falling back to mock:', err);
+  } catch (err: unknown) {
+    // Log the specific error for debugging
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn('[JobMate] Cloud function call failed:', errMsg);
+
+    // If the error is an actual AI service error (not a network/deploy issue),
+    // show the error to the user rather than returning a misleading mock
+    const errCode = (err as { code?: string })?.code;
+    if (errCode === 'functions/unavailable') {
+      return {
+        content: '⚠️ The AI service is temporarily unavailable. Please try again in a moment.',
+        mode: request.mode,
+      };
+    }
+    if (errCode === 'functions/unauthenticated') {
+      return {
+        content: '⚠️ You need to be signed in to use JobMate. Please sign in and try again.',
+        mode: request.mode,
+      };
+    }
   }
 
-  // Mock fallback with realistic delay
+  // Mock fallback — only reached when Cloud Functions are not deployed
   const delay = 600 + Math.random() * 1000;
   await new Promise((resolve) => setTimeout(resolve, delay));
 

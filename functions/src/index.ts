@@ -15,7 +15,7 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import * as functions from "firebase-functions";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 
 // Re-export Stripe payment functions
@@ -23,6 +23,9 @@ export { createCheckoutSession, stripeWebhook } from "./stripe";
 
 // Re-export push notification functions
 export { onMessageCreated } from "./notifications";
+
+// Re-export AI / JobMate functions
+export { jobmateChat } from "./jobmate";
 
 // ============================================================================
 // Initialisation
@@ -57,8 +60,9 @@ const APP_REDIRECT_URL = "https://projectworks-8b692.web.app/integrations";
 // ============================================================================
 
 /** Build a JSON response with CORS headers. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function jsonResponse(
-  res: functions.Response,
+  res: any,
   body: Record<string, unknown>,
   status = 200
 ): void {
@@ -550,28 +554,7 @@ async function processSyncItem(
 }
 
 // ============================================================================
-// 4. onPhotoCreated  --  Firestore trigger (v1, onCreate)
-// ============================================================================
-
-/**
- * When a new photo document is created under any project, check if that
- * project has a linked JobTread job. If so, auto-enqueue a sync_to_jobtread
- * item so the photo is pushed to JobTread automatically.
- *
- * Expected Firestore structure:
- *   photos/{photoId}
- *     - projectId: string
- *     - companyId: string
- *     - url: string
- *     - ...
- *
- *   projects/{projectId}
- *     - jobtreadJobId?: string   (present if linked)
- *     - companyId: string
- *     - ...
- */
-// ============================================================================
-// 5. jobtreadProxy  --  CORS proxy for browser → JobTread Pave API (2nd gen)
+// 4. jobtreadProxy  --  CORS proxy for browser → JobTread Pave API (2nd gen)
 // ============================================================================
 
 /**
@@ -660,11 +643,20 @@ export const jobtreadProxy = onRequest(
 // 6. onPhotoCreated  --  Firestore trigger (v1, onCreate)
 // ============================================================================
 
-export const onPhotoCreated = functions.firestore
-  .document("photos/{photoId}")
-  .onCreate(async (snapshot, context) => {
+export const onPhotoCreated = onDocumentCreated(
+  {
+    document: "photos/{photoId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) {
+      console.log("No data in photo event, skipping");
+      return;
+    }
+
     const photoData = snapshot.data();
-    const photoId = context.params.photoId;
+    const photoId = event.params.photoId;
 
     if (!photoData) {
       console.log(`Photo ${photoId} has no data, skipping`);
@@ -727,4 +719,5 @@ export const onPhotoCreated = functions.firestore
     } catch (error) {
       console.error(`onPhotoCreated error for ${photoId}:`, error);
     }
-  });
+  }
+);
