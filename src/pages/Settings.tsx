@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { User, Building2, Users, Tag, Bookmark, Link2, ChevronRight, ArrowLeft } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { User, Building2, Users, Tag, Bookmark, Link2, ChevronRight, ArrowLeft, LogOut } from 'lucide-react';
 import { useAuthContext } from '@/components/auth/AuthProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
@@ -25,9 +25,21 @@ const menuItems: { id: SettingsSection; label: string; icon: React.ElementType; 
 ];
 
 export default function Settings() {
-  const { profile } = useAuthContext();
+  const { profile, signOut } = useAuthContext();
+  const navigate = useNavigate();
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const [searchParams] = useSearchParams();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+      navigate('/auth/login');
+    } catch {
+      setSigningOut(false);
+    }
+  };
 
   // Read initial tab from URL search params (e.g. /settings?tab=company)
   const tabParam = searchParams.get('tab') as SettingsSection | null;
@@ -87,6 +99,18 @@ export default function Settings() {
                 {item.label}
               </button>
             ))}
+
+            {/* Sign Out */}
+            <div className="pt-4 mt-4 border-t border-slate-200">
+              <button
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                {signingOut ? 'Signing out...' : 'Sign Out'}
+              </button>
+            </div>
           </nav>
         </div>
         <div className="flex-1 max-w-2xl">{renderContent()}</div>
@@ -127,6 +151,22 @@ export default function Settings() {
           <ChevronRight className="w-5 h-5 text-slate-400" />
         </button>
       ))}
+
+      {/* Sign Out Button */}
+      <div className="pt-6">
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="w-full flex items-center gap-3 p-4 bg-white rounded-xl hover:bg-red-50 border border-red-200 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+            <LogOut className="w-5 h-5 text-red-500" />
+          </div>
+          <span className="flex-1 text-left text-sm font-semibold text-red-600">
+            {signingOut ? 'Signing out...' : 'Sign Out'}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
