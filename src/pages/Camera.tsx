@@ -17,7 +17,7 @@ interface CapturedPhoto {
 export default function Camera() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const preselectedProjectId = searchParams.get('project') || undefined;
+  const preselectedProjectId = searchParams.get('projectId') || searchParams.get('project') || undefined;
   
   const { profile, user } = useAuthContext();
   const { position } = useGeolocation();

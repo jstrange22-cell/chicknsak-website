@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -21,12 +21,17 @@ import {
   Pencil,
   Users,
   Upload,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProjects';
+import { usePhotos } from '@/hooks/usePhotos';
 import { useAuthContext } from '@/components/auth/AuthProvider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
+import { PhotoGrid } from '@/components/photos/PhotoGrid';
+import { uploadPhoto } from '@/lib/storage';
 
 // Checklists
 import {
@@ -94,8 +99,13 @@ const tabs = [
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  useAuthContext();
+  const { user, profile } = useAuthContext();
   const [activeTab, setActiveTab] = useState('photos');
+
+  // Photo state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
 
   // Checklist state
   const [showNewChecklist, setShowNewChecklist] = useState(false);
@@ -137,6 +147,9 @@ export default function ProjectDetail() {
   const createTask = useCreateTask();
   const completeTask = useCompleteTask();
   const deleteTask = useDeleteTask();
+
+  // Photos data
+  const { data: photos, isLoading: photosLoading } = usePhotos({ projectId: id });
 
   // Documents data & mutations
   const { data: documents, isLoading: documentsLoading } = useProjectDocuments(id);
@@ -334,7 +347,7 @@ export default function ProjectDetail() {
 
   // Compute tab counts
   const tabCounts: Record<string, number> = {
-    photos: 0, // TODO: wire up when photo system is complete
+    photos: (photos ?? []).length,
     pages: (pages ?? []).length,
     documents: (documents ?? []).length,
     checklists: (checklists ?? []).length,
@@ -439,18 +452,86 @@ export default function ProjectDetail() {
             <div className="py-6 pr-0 lg:pr-6">
               {/* PHOTOS TAB */}
               {activeTab === 'photos' && (
-                <div className="flex flex-col items-center justify-center py-20">
-                  <p className="text-slate-500 text-sm mb-4">Start taking pictures in the mobile app.</p>
-                  <div className="flex items-center gap-3">
-                    <Button onClick={() => {}} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <div>
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <Button
+                      onClick={() => navigate(`/camera?projectId=${id}`)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Camera className="h-4 w-4" />
+                      Take Photo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                    >
                       <Upload className="h-4 w-4" />
-                      Upload Photos
+                      {isUploading ? uploadProgress : 'Upload from Gallery'}
                     </Button>
-                    <Button variant="outline" onClick={() => {}}>
-                      <Users className="h-4 w-4" />
-                      Assign Users
-                    </Button>
+                    {/* Hidden file input for gallery upload */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files?.length || !id || !user?.uid || !profile?.companyId) return;
+                        setIsUploading(true);
+                        try {
+                          for (let i = 0; i < files.length; i++) {
+                            setUploadProgress(`Uploading ${i + 1}/${files.length}...`);
+                            await uploadPhoto({
+                              file: files[i],
+                              projectId: id,
+                              userId: user.uid,
+                              companyId: profile.companyId,
+                            });
+                          }
+                          setUploadProgress('');
+                          // Reset input so same file can be re-selected
+                          e.target.value = '';
+                        } catch (err) {
+                          console.error('Upload failed:', err);
+                        } finally {
+                          setIsUploading(false);
+                        }
+                      }}
+                    />
                   </div>
+
+                  {/* Photo grid or empty state */}
+                  {photosLoading ? (
+                    <PhotoGrid photos={[]} isLoading />
+                  ) : photos && photos.length > 0 ? (
+                    <PhotoGrid photos={photos} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                        <Camera className="h-7 w-7 text-slate-400" />
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-900 mb-1">No photos yet</h3>
+                      <p className="text-sm text-slate-500 mb-5 text-center max-w-[280px]">
+                        Take a photo with your camera or upload from your gallery to get started.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => navigate(`/camera?projectId=${id}`)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <Camera className="h-4 w-4" />
+                          Take Photo
+                        </Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                          <ImageIcon className="h-4 w-4" />
+                          Upload
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
