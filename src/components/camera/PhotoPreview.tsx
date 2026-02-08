@@ -189,14 +189,19 @@ export function PhotoPreview({
             </p>
           )}
 
-          {/* Save Error Banner */}
+          {/* Save Error Banner — large and prominent so users see it clearly */}
           {saveError && (
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
-              <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-red-800">Failed to save photo</p>
-                <p className="text-xs text-red-600 mt-0.5">{saveError}</p>
+            <div className="rounded-xl bg-red-600 text-white p-4 shadow-lg animate-pulse-once">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <AlertTriangle className="h-6 w-6 text-white" />
+                </div>
+                <p className="text-base font-bold">Photo Save Failed</p>
               </div>
+              <p className="text-sm text-red-100 leading-relaxed">{saveError}</p>
+              <p className="text-xs text-red-200 mt-2">
+                If this keeps happening, check your internet connection or sign out and sign back in.
+              </p>
             </div>
           )}
 

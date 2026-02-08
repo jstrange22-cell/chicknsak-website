@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Copy, Check } from 'lucide-react';
+import { X, Copy, Check, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
 import { useInviteCollaborator } from '@/hooks/useCollaborators';
+import { useVendors } from '@/hooks/useVendors';
 import type { CollaboratorRole, CollaboratorPermissions } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -65,6 +66,10 @@ export function InviteCollaborator({
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Vendor data for dropdown
+  const { data: vendors = [] } = useVendors();
+  const activeVendors = vendors.filter((v) => v.status === 'active');
 
   // Mutation
   const inviteMutation = useInviteCollaborator();
@@ -269,6 +274,42 @@ export function InviteCollaborator({
         ) : (
           /* Invite form */
           <form onSubmit={handleSubmit} className="p-4 space-y-5">
+            {/* Select from Saved Vendors */}
+            {activeVendors.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-slate-400" />
+                  Select from Saved Vendors
+                </label>
+                <select
+                  onChange={(e) => {
+                    const vendor = activeVendors.find((v) => v.id === e.target.value);
+                    if (vendor) {
+                      if (vendor.name) setName(vendor.name);
+                      if (vendor.email) setEmail(vendor.email);
+                      if (vendor.phone) setPhone(vendor.phone);
+                      setRole('subcontractor');
+                      setPermissions(DEFAULT_PERMISSIONS.subcontractor);
+                      setEmailError('');
+                    }
+                  }}
+                  defaultValue=""
+                  disabled={isSubmitting}
+                  className="flex h-12 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Choose a vendor to auto-fill...</option>
+                  {activeVendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}{vendor.specialty ? ` — ${vendor.specialty}` : ''}{vendor.company ? ` (${vendor.company})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400">
+                  Select a vendor to auto-fill their info, or enter details manually below.
+                </p>
+              </div>
+            )}
+
             {/* Email */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">

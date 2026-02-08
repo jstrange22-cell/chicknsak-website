@@ -48,6 +48,9 @@ export interface JobTreadJob {
   description?: string;
   closedOn?: string;
   location?: JobTreadLocation;
+  /** JobTread returns customer data on jobs */
+  customer?: JobTreadContact;
+  /** Fallback alias for backward compatibility */
   contact?: JobTreadContact;
   createdAt: string;
 }
@@ -119,7 +122,8 @@ function f(...names: string[]): Record<string, Record<string, never>> {
 const JOB_FIELDS = {
   ...f('id', 'name', 'number', 'status', 'description', 'closedOn', 'createdAt'),
   location: f('id', 'address', 'latitude', 'longitude'),
-  contact: f('id', 'name', 'email', 'phone', 'company'),
+  // JobTread uses "customer" as the contact entity on jobs
+  customer: f('id', 'name', 'email', 'phone', 'company'),
 };
 
 // ---------------------------------------------------------------------------
@@ -522,35 +526,82 @@ export class JobTreadClient {
   // -----------------------------------------------------------------------
 
   /**
-   * Fetch proposals for a specific job.
+   * Fetch proposals/estimates for a specific job.
+   * JobTread may call these "proposals" or "estimates" depending on version.
    * Returns proposals with their groups and line items.
    */
   async getJobProposals(jobId: string): Promise<JobTreadProposal[]> {
-    const data = await this.query<{
-      job: {
-        proposals: {
-          nodes: JobTreadProposal[];
+    // Try "estimates" first (more common in newer JobTread versions),
+    // then fall back to "proposals"
+    try {
+      const data = await this.query<{
+        job: {
+          estimates?: {
+            nodes: JobTreadProposal[];
+          };
+          proposals?: {
+            nodes: JobTreadProposal[];
+          };
         };
-      };
-    }>({
-      job: {
-        $: { id: jobId },
-        proposals: {
-          nodes: {
-            ...f('id', 'name', 'status'),
-            groups: {
-              nodes: {
-                ...f('id', 'name'),
-                lineItems: {
-                  nodes: f('id', 'name', 'description'),
+      }>({
+        job: {
+          $: { id: jobId },
+          estimates: {
+            nodes: {
+              ...f('id', 'name', 'status'),
+              groups: {
+                nodes: {
+                  ...f('id', 'name'),
+                  lineItems: {
+                    nodes: f('id', 'name', 'description'),
+                  },
                 },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    return data.job?.proposals?.nodes ?? [];
+      const estimateNodes = data.job?.estimates?.nodes;
+      if (estimateNodes && estimateNodes.length > 0) {
+        return estimateNodes;
+      }
+    } catch (err) {
+      // "estimates" field might not exist — try "proposals" instead
+      console.warn('[JobTread] "estimates" query failed, trying "proposals":', err);
+    }
+
+    // Fallback: try "proposals"
+    try {
+      const data = await this.query<{
+        job: {
+          proposals: {
+            nodes: JobTreadProposal[];
+          };
+        };
+      }>({
+        job: {
+          $: { id: jobId },
+          proposals: {
+            nodes: {
+              ...f('id', 'name', 'status'),
+              groups: {
+                nodes: {
+                  ...f('id', 'name'),
+                  lineItems: {
+                    nodes: f('id', 'name', 'description'),
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return data.job?.proposals?.nodes ?? [];
+    } catch (err) {
+      console.error('[JobTread] Both "estimates" and "proposals" queries failed:', err);
+      return [];
+    }
   }
 }

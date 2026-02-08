@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -21,8 +21,9 @@ import {
   Upload,
   Camera,
   Image as ImageIcon,
+  Archive,
 } from 'lucide-react';
-import { useProject } from '@/hooks/useProjects';
+import { useProject, useArchiveProject } from '@/hooks/useProjects';
 import { usePhotos } from '@/hooks/usePhotos';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useAuthContext } from '@/components/auth/AuthProvider';
@@ -115,8 +116,16 @@ export default function ProjectDetail() {
   // Share link copy state
   const [copiedShareId, setCopiedShareId] = useState<string | null>(null);
 
+  // More menu state
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
   // Project data
   const { data: project, isLoading, error } = useProject(id);
+
+  // Project mutations
+  const archiveProject = useArchiveProject();
 
   // Tasks data & mutations
   const { data: tasks, isLoading: tasksLoading } = useProjectTasks(id);
@@ -164,6 +173,41 @@ export default function ProjectDetail() {
     navigator.clipboard.writeText(url);
     setCopiedShareId(token);
     setTimeout(() => setCopiedShareId(null), 2000);
+  };
+
+  // Close more menu on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    }
+    if (showMoreMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showMoreMenu]);
+
+  const handleArchiveProject = () => {
+    if (!id) return;
+    archiveProject.mutate(id, {
+      onSuccess: () => {
+        setShowMoreMenu(false);
+        navigate('/projects');
+      },
+    });
+  };
+
+  const handleDeleteProject = () => {
+    if (!id) return;
+    // Use archive as soft delete, then navigate away
+    archiveProject.mutate(id, {
+      onSuccess: () => {
+        setShowMoreMenu(false);
+        setShowDeleteConfirm(false);
+        navigate('/projects');
+      },
+    });
   };
 
   if (isLoading) {
@@ -301,9 +345,59 @@ export default function ProjectDetail() {
             <button className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm text-slate-600 hover:bg-slate-100 transition-colors">
               Request Review
             </button>
-            <button className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors" title="More options">
-              <MoreHorizontal className="h-5 w-5" />
-            </button>
+            <div className="relative" ref={moreMenuRef}>
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                title="More options"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </button>
+
+              {showMoreMenu && (
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      navigate(`/projects/${id}/edit`);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <Pencil className="h-4 w-4 text-slate-400" />
+                    Edit Project
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      // Navigate to projects page — duplication can be handled there
+                      navigate('/projects', { state: { duplicateProjectId: id } });
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <Copy className="h-4 w-4 text-slate-400" />
+                    Duplicate Project
+                  </button>
+                  <div className="border-t border-slate-100 my-1" />
+                  <button
+                    onClick={handleArchiveProject}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <Archive className="h-4 w-4 text-slate-400" />
+                    Archive Project
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setShowDeleteConfirm(true);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Project
+                  </button>
+                </div>
+              )}
+            </div>
             {/* Status Badge */}
             <span
               className={cn(
@@ -1057,6 +1151,34 @@ export default function ProjectDetail() {
         onClose={() => setShowInviteCollaborator(false)}
         projectId={id || ''}
       />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete Project</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              Are you sure you want to delete <strong>{project.name}</strong>? This will archive the project and it will no longer appear in your project list.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteProject}
+                className="bg-red-600 hover:bg-red-700 text-white"
+                isLoading={archiveProject.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

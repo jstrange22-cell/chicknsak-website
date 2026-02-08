@@ -143,8 +143,22 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
       getDownloadURL(thumbnailSnapshot.ref),
     ]);
   } catch (uploadError) {
-    console.error('[uploadPhoto] Firebase Storage upload failed:', uploadError);
-    throw new Error(getStorageErrorMessage(uploadError));
+    const errorCode = uploadError && typeof uploadError === 'object' && 'code' in uploadError
+      ? (uploadError as { code: string }).code
+      : 'unknown';
+    const errorServerResponse = uploadError && typeof uploadError === 'object' && 'serverResponse' in uploadError
+      ? (uploadError as { serverResponse: string }).serverResponse
+      : null;
+    console.error(
+      '[uploadPhoto] Firebase Storage upload failed.\n' +
+      `  Error code : ${errorCode}\n` +
+      `  Storage path : ${storagePath}\n` +
+      `  File size : ${compressedImage.size} bytes\n` +
+      `  Server response: ${errorServerResponse || '(none)'}`,
+      uploadError,
+    );
+    const userMessage = getStorageErrorMessage(uploadError);
+    throw new Error(userMessage);
   }
 
   // ---- Step 3: Create Firestore document ----
@@ -202,7 +216,17 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
   } catch (firestoreError) {
     // Only rethrow if this is not a tag error (photo doc creation failed)
     if (!(firestoreError instanceof Error && firestoreError.message.includes('tags'))) {
-      console.error('[uploadPhoto] Firestore document creation failed:', firestoreError);
+      const fsCode = firestoreError && typeof firestoreError === 'object' && 'code' in firestoreError
+        ? (firestoreError as { code: string }).code
+        : 'unknown';
+      console.error(
+        '[uploadPhoto] Firestore document creation failed.\n' +
+        `  Error code : ${fsCode}\n` +
+        `  Collection : photos\n` +
+        `  Project ID : ${projectId}\n` +
+        `  Company ID : ${companyId}`,
+        firestoreError,
+      );
       throw new Error(getFirestoreErrorMessage(firestoreError));
     }
     // This shouldn't be reached, but as a safety net:

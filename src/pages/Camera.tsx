@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera as CameraIcon, ArrowLeft, Image as ImageIcon } from 'lucide-react';
+import { Camera as CameraIcon, ArrowLeft, Image as ImageIcon, AlertTriangle, X } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -131,16 +131,36 @@ export default function Camera() {
   // Show photo preview if captured
   if (capturedPhoto) {
     return (
-      <PhotoPreview
-        photoDataUrl={capturedPhoto.dataUrl}
-        timestamp={capturedPhoto.timestamp}
-        latitude={position?.latitude}
-        longitude={position?.longitude}
-        onRetake={handleRetake}
-        onSave={handleSavePhoto}
-        preselectedProjectId={preselectedProjectId}
-        saveError={saveError}
-      />
+      <>
+        {/* Top-level sticky error banner — always visible when save fails */}
+        {saveError && (
+          <div className="fixed top-0 left-0 right-0 z-[100] bg-red-600 text-white px-4 py-3 shadow-xl">
+            <div className="flex items-start gap-3 max-w-lg mx-auto">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm">Photo Save Failed</p>
+                <p className="text-xs text-red-100 mt-0.5 leading-relaxed">{saveError}</p>
+              </div>
+              <button
+                onClick={() => setSaveError(null)}
+                className="flex-shrink-0 p-1 rounded hover:bg-red-700 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        <PhotoPreview
+          photoDataUrl={capturedPhoto.dataUrl}
+          timestamp={capturedPhoto.timestamp}
+          latitude={position?.latitude}
+          longitude={position?.longitude}
+          onRetake={handleRetake}
+          onSave={handleSavePhoto}
+          preselectedProjectId={preselectedProjectId}
+          saveError={saveError}
+        />
+      </>
     );
   }
 

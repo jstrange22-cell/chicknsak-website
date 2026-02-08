@@ -13,7 +13,6 @@ import {
   Briefcase,
   Link2,
   LayoutTemplate,
-  LogOut,
   MessageCircle,
   MessageSquare,
   PlusCircle,
@@ -88,7 +87,7 @@ const adminNavSection: NavSection = {
 // ---------------------------------------------------------------------------
 
 export function DesktopSidebar() {
-  const { profile, signOut, user } = useAuthContext();
+  const { profile, user } = useAuthContext();
   const navigate = useNavigate();
   const { data: unreadCount = 0 } = useUnreadCount(user?.uid);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -100,11 +99,6 @@ export function DesktopSidebar() {
   const navSections = useMemo(() => {
     return [...baseNavSections, adminNavSection];
   }, []);
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth/login');
-  };
 
   // Close menus on outside click
   useEffect(() => {
@@ -254,14 +248,6 @@ export function DesktopSidebar() {
                   Tags
                 </button>
 
-                <div className="border-t border-slate-100 my-1" />
-                <button
-                  onClick={() => { setShowUserMenu(false); handleSignOut(); }}
-                  className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sign Out
-                </button>
               </div>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   X,
   MapPin,
@@ -16,7 +16,6 @@ import {
   LayoutTemplate,
   Settings,
   Shield,
-  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/components/auth/AuthProvider';
@@ -78,14 +77,7 @@ interface MobileSidebarProps {
 }
 
 export function MobileSidebar({ isOpen, onClose, unreadCount = 0 }: MobileSidebarProps) {
-  const { signOut, profile } = useAuthContext();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    onClose();
-    await signOut();
-    navigate('/auth/login');
-  };
+  const { profile } = useAuthContext();
 
   // Inject badge on Messages
   const sections = navSections.map((section) => ({
@@ -197,16 +189,6 @@ export function MobileSidebar({ isOpen, onClose, unreadCount = 0 }: MobileSideba
           ))}
         </nav>
 
-        {/* Bottom: Sign Out */}
-        <div className="border-t border-slate-800/60 p-3">
-          <button
-            onClick={handleSignOut}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Sign Out</span>
-          </button>
-        </div>
       </div>
     </>
   );
