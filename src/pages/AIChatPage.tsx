@@ -5,7 +5,6 @@ import {
   Sparkles,
   DollarSign,
   BookOpen,
-  Wrench,
   Loader2,
   Trash2,
   FileText,
@@ -20,6 +19,7 @@ import {
   Landmark,
   Ruler,
   HardHat,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -178,12 +178,138 @@ function CopyButton({ text }: { text: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// CSV Export Helpers
+// ---------------------------------------------------------------------------
+
+/** Escape a value for CSV — wraps in quotes, escapes internal quotes. */
+function csvEscape(value: string | number): string {
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/** Trigger a browser download for a CSV string. */
+function downloadCsv(csvContent: string, filename: string) {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Export estimate as a JobTread-friendly CSV.
+ *
+ * JobTread imports proposals/estimates as CSV with columns:
+ *   Group, Item Name, Description, Quantity, Unit, Unit Cost, Total
+ *
+ * Each area becomes a group, each line item becomes a row.
+ * Markup items (profit, overhead, tax, contingency) are appended
+ * as separate rows at the end so the full price is captured.
+ */
+function exportEstimateToJobTreadCsv(estimate: EstimateOutput) {
+  const headers = ['Group', 'Item Name', 'Description', 'Quantity', 'Unit', 'Unit Cost', 'Total'];
+  const rows: string[][] = [headers];
+
+  // Line items grouped by area
+  for (const area of estimate.areas) {
+    for (const item of area.lineItems) {
+      rows.push([
+        csvEscape(area.name),
+        csvEscape(item.description),
+        csvEscape(item.notes || item.category || ''),
+        String(item.quantity),
+        csvEscape(item.unit),
+        item.unitCost.toFixed(2),
+        item.totalCost.toFixed(2),
+      ]);
+    }
+  }
+
+  // Markup rows
+  if (estimate.profitAmount > 0) {
+    rows.push(['Markup', 'Profit', `${estimate.markup.profitPercent}%`, '1', 'LS', estimate.profitAmount.toFixed(2), estimate.profitAmount.toFixed(2)]);
+  }
+  if (estimate.overheadAmount > 0) {
+    rows.push(['Markup', 'Overhead', `${estimate.markup.overheadPercent}%`, '1', 'LS', estimate.overheadAmount.toFixed(2), estimate.overheadAmount.toFixed(2)]);
+  }
+  if (estimate.taxAmount > 0) {
+    rows.push(['Markup', 'Tax', `${estimate.markup.taxPercent}%`, '1', 'LS', estimate.taxAmount.toFixed(2), estimate.taxAmount.toFixed(2)]);
+  }
+  if (estimate.contingencyAmount > 0) {
+    rows.push(['Markup', 'Contingency', `${estimate.markup.contingencyPercent}%`, '1', 'LS', estimate.contingencyAmount.toFixed(2), estimate.contingencyAmount.toFixed(2)]);
+  }
+
+  const csvContent = rows.map((r) => r.join(',')).join('\n');
+  const timestamp = new Date().toISOString().slice(0, 10);
+  downloadCsv(csvContent, `estimate-jobtread-${timestamp}.csv`);
+}
+
+/**
+ * Export estimate as a general CSV with full detail.
+ */
+function exportEstimateCsv(estimate: EstimateOutput) {
+  const headers = ['Area', 'Description', 'Category', 'Quantity', 'Unit', 'Unit Cost', 'Total Cost', 'Notes'];
+  const rows: string[][] = [headers];
+
+  for (const area of estimate.areas) {
+    for (const item of area.lineItems) {
+      rows.push([
+        csvEscape(area.name),
+        csvEscape(item.description),
+        csvEscape(item.category),
+        String(item.quantity),
+        csvEscape(item.unit),
+        item.unitCost.toFixed(2),
+        item.totalCost.toFixed(2),
+        csvEscape(item.notes || ''),
+      ]);
+    }
+    // Area subtotal row
+    rows.push([csvEscape(area.name), 'SUBTOTAL', '', '', '', '', area.subtotal.toFixed(2), '']);
+  }
+
+  // Summary rows
+  rows.push(['', '', '', '', '', '', '', '']);
+  rows.push(['Summary', 'Hard Costs', '', '', '', '', estimate.hardCosts.toFixed(2), '']);
+  rows.push(['Summary', `Profit (${estimate.markup.profitPercent}%)`, '', '', '', '', estimate.profitAmount.toFixed(2), '']);
+  rows.push(['Summary', `Overhead (${estimate.markup.overheadPercent}%)`, '', '', '', '', estimate.overheadAmount.toFixed(2), '']);
+  if (estimate.taxAmount > 0) {
+    rows.push(['Summary', `Tax (${estimate.markup.taxPercent}%)`, '', '', '', '', estimate.taxAmount.toFixed(2), '']);
+  }
+  rows.push(['Summary', `Contingency (${estimate.markup.contingencyPercent}%)`, '', '', '', '', estimate.contingencyAmount.toFixed(2), '']);
+  rows.push(['Summary', 'TOTAL PRICE', '', '', '', '', estimate.totalPrice.toFixed(2), `Margin: ${estimate.grossMarginPercent.toFixed(1)}%`]);
+
+  const csvContent = rows.map((r) => r.join(',')).join('\n');
+  const timestamp = new Date().toISOString().slice(0, 10);
+  downloadCsv(csvContent, `estimate-${timestamp}.csv`);
+}
+
+// ---------------------------------------------------------------------------
 // Estimate Summary Card (shown when AI returns structured estimate)
 // ---------------------------------------------------------------------------
 
 function EstimateSummaryCard({ estimate }: { estimate: EstimateOutput }) {
+  const [saved, setSaved] = useState(false);
+
   const fmt = (cents: number) =>
     '$' + (cents).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const handleSaveEstimate = () => {
+    exportEstimateCsv(estimate);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleExportJobTread = () => {
+    exportEstimateToJobTreadCsv(estimate);
+  };
 
   return (
     <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
@@ -252,17 +378,26 @@ function EstimateSummaryCard({ estimate }: { estimate: EstimateOutput }) {
         </div>
       </div>
 
-      {/* Sync buttons */}
-      <div className="flex gap-2 mt-3">
-        <button className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">
-          <Wrench className="h-3 w-3" />
-          Save Estimate
+      {/* Export buttons */}
+      <div className="flex flex-wrap gap-2 mt-3">
+        <button
+          onClick={handleSaveEstimate}
+          className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 active:bg-emerald-100 transition-colors"
+        >
+          {saved ? <Check className="h-3 w-3" /> : <Download className="h-3 w-3" />}
+          {saved ? 'Downloaded!' : 'Save as CSV'}
         </button>
-        <button className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-[11px] font-medium text-blue-700 hover:bg-blue-50 transition-colors">
+        <button
+          onClick={handleExportJobTread}
+          className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-[11px] font-medium text-blue-700 hover:bg-blue-50 active:bg-blue-100 transition-colors"
+        >
           <HardHat className="h-3 w-3" />
-          Sync to JobTread
+          Export for JobTread
         </button>
       </div>
+      <p className="text-[9px] text-slate-400 mt-1.5">
+        JobTread CSV can be imported as a proposal via JobTread &rarr; Import
+      </p>
     </div>
   );
 }
