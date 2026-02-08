@@ -97,6 +97,7 @@ export interface Project extends BaseDocument {
   customerCompany?: string;
   notepad?: string;
   coverPhotoId?: string;
+  assignedUserIds?: string[];
   progress: number;
   metadata: Record<string, unknown>;
   createdBy: string;

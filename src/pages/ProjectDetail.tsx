@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   collection, query as fbQuery, where, getDocs, addDoc, serverTimestamp, onSnapshot,
+  doc as firestoreDoc, updateDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -26,6 +27,8 @@ import {
   Camera,
   Image as ImageIcon,
   Archive,
+  X,
+  UserPlus,
 } from 'lucide-react';
 import { useProject, useArchiveProject } from '@/hooks/useProjects';
 import { usePhotos } from '@/hooks/usePhotos';
@@ -35,6 +38,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { PhotoGrid } from '@/components/photos/PhotoGrid';
+import { PhotoDetail } from '@/components/photos/PhotoDetail';
 import { PhotoPreview, type SavePhotoData } from '@/components/camera/PhotoPreview';
 import { uploadPhoto } from '@/lib/storage';
 
@@ -75,7 +79,8 @@ import { useProjectCollaborators, useRemoveCollaborator } from '@/hooks/useColla
 import { CollaboratorList } from '@/components/collaborators/CollaboratorList';
 import { InviteCollaborator } from '@/components/collaborators/InviteCollaborator';
 
-import type { TaskPriority, PageType, ReportType, Page, Report } from '@/types';
+import { useCompanyUsers } from '@/hooks/useCompanyUsers';
+import type { TaskPriority, PageType, ReportType, Page, Report, User as UserType } from '@/types';
 
 const tabs = [
   { id: 'photos', label: 'Photos' },
@@ -93,6 +98,7 @@ export default function ProjectDetail() {
   const [activeTab, setActiveTab] = useState('photos');
 
   // Photo state
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -116,6 +122,9 @@ export default function ProjectDetail() {
 
   // Collaborator state
   const [showInviteCollaborator, setShowInviteCollaborator] = useState(false);
+
+  // Project Users (assigned registered users) state
+  const [showUserPicker, setShowUserPicker] = useState(false);
 
   // Share link copy state
   const [copiedShareId, setCopiedShareId] = useState<string | null>(null);
@@ -166,6 +175,13 @@ export default function ProjectDetail() {
   // Collaborators data & mutations
   const { data: collaborators, isLoading: collaboratorsLoading } = useProjectCollaborators(id);
   const removeCollaborator = useRemoveCollaborator();
+
+  // Company users (for project user assignment)
+  const { data: companyUsers = [] } = useCompanyUsers();
+  const activeCompanyUsers = companyUsers.filter((u) => u.isActive);
+  const assignedUserIds = project?.assignedUserIds ?? [];
+  const assignedUsers = activeCompanyUsers.filter((u) => assignedUserIds.includes(u.id));
+  const unassignedUsers = activeCompanyUsers.filter((u) => !assignedUserIds.includes(u.id));
 
   // --- Project Conversation ---
   const queryClient = useQueryClient();
@@ -275,6 +291,21 @@ export default function ProjectDetail() {
     if (taskFilter === 'all') return true;
     return t.status === taskFilter;
   });
+
+  // Assign/unassign users to project
+  const handleAssignUser = async (userId: string) => {
+    if (!id) return;
+    const projectRef = firestoreDoc(db, 'projects', id);
+    await updateDoc(projectRef, { assignedUserIds: arrayUnion(userId) });
+    queryClient.invalidateQueries({ queryKey: ['project', id] });
+  };
+
+  const handleUnassignUser = async (userId: string) => {
+    if (!id) return;
+    const projectRef = firestoreDoc(db, 'projects', id);
+    await updateDoc(projectRef, { assignedUserIds: arrayRemove(userId) });
+    queryClient.invalidateQueries({ queryKey: ['project', id] });
+  };
 
   const handleCopyShareLink = (type: string, token: string) => {
     const url = `${window.location.origin}/share/${type}/${token}`;
@@ -680,7 +711,7 @@ export default function ProjectDetail() {
                       {photosLoading ? (
                         <PhotoGrid photos={[]} isLoading />
                       ) : photos && photos.length > 0 ? (
-                        <PhotoGrid photos={photos} />
+                        <PhotoGrid photos={photos} onPhotoClick={(photo) => setSelectedPhoto(photo)} />
                       ) : (
                         <div className="flex flex-col items-center justify-center py-16">
                           <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
@@ -1045,32 +1076,73 @@ export default function ProjectDetail() {
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-slate-900">
-                    Project Users ({(collaborators ?? []).length + 1})
+                    Project Users ({assignedUsers.length + 1})
                   </h3>
                   <button
-                    onClick={() => setShowInviteCollaborator(true)}
+                    onClick={() => setShowUserPicker(!showUserPicker)}
                     className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
                   >
-                    <Pencil className="h-4 w-4" />
+                    <UserPlus className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-7 w-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
-                    You
+
+                {/* Assigned user list */}
+                <div className="space-y-1.5">
+                  {/* Current user (always shown) */}
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium shrink-0">
+                      {profile?.fullName?.[0]?.toUpperCase() ?? 'Y'}
+                    </div>
+                    <span className="text-xs text-slate-700 truncate">{profile?.fullName ?? 'You'}</span>
+                    <span className="ml-auto text-[10px] text-slate-400">Owner</span>
                   </div>
-                  {(collaborators ?? []).slice(0, 4).map((collab) => (
-                    <div
-                      key={collab.id}
-                      className="h-7 w-7 rounded-full bg-slate-300 flex items-center justify-center text-white text-xs font-medium"
-                      title={collab.email}
-                    >
-                      {collab.email?.[0]?.toUpperCase() ?? '?'}
+                  {assignedUsers.map((u) => (
+                    <div key={u.id} className="flex items-center gap-2 group">
+                      <div className="h-7 w-7 rounded-full bg-slate-400 flex items-center justify-center text-white text-xs font-medium shrink-0">
+                        {u.fullName?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      <span className="text-xs text-slate-700 truncate">{u.fullName}</span>
+                      <button
+                        onClick={() => handleUnassignUser(u.id)}
+                        className="ml-auto p-0.5 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove from project"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ))}
-                  {(collaborators ?? []).length > 4 && (
-                    <span className="text-xs text-slate-400">+{(collaborators ?? []).length - 4}</span>
-                  )}
                 </div>
+
+                {/* User Picker Dropdown */}
+                {showUserPicker && (
+                  <div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-sm">
+                    {unassignedUsers.length === 0 ? (
+                      <p className="text-xs text-slate-400 p-3 text-center">All users are assigned</p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto py-1">
+                        {unassignedUsers.map((u) => (
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              handleAssignUser(u.id);
+                              setShowUserPicker(false);
+                            }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors"
+                          >
+                            <div className="h-6 w-6 rounded-full bg-slate-300 flex items-center justify-center text-white text-xs font-medium shrink-0">
+                              {u.fullName?.[0]?.toUpperCase() ?? '?'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-slate-700 truncate">{u.fullName}</p>
+                              <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
+                            </div>
+                            <span className="ml-auto text-[10px] text-slate-400 capitalize">{u.role}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Collaborators */}
@@ -1294,6 +1366,16 @@ export default function ProjectDetail() {
         onClose={() => setShowInviteCollaborator(false)}
         projectId={id || ''}
       />
+
+      {/* Photo Detail Modal */}
+      {selectedPhoto && (
+        <PhotoDetail
+          photo={selectedPhoto}
+          photos={photos ?? []}
+          onClose={() => setSelectedPhoto(null)}
+          onNavigate={(photo) => setSelectedPhoto(photo)}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

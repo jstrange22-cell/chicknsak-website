@@ -50,7 +50,10 @@ export function PhotoDetail({
   onClose,
   onNavigate,
 }: PhotoDetailProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'manager';
+  const isPhotoOwner = user?.uid === photo.uploadedBy;
+  const canDeletePhoto = isAdmin || isPhotoOwner;
   const [isEditing, setIsEditing] = useState(false);
   const [description, setDescription] = useState(photo.description || '');
   const [showTagSelector, setShowTagSelector] = useState(false);
@@ -214,10 +217,14 @@ export function PhotoDetail({
                 <button className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2" onClick={() => { window.open(photo.url, '_blank'); setShowMenu(false); }}>
                   <ExternalLink className="w-4 h-4" /> Open original
                 </button>
-                <hr className="my-1" />
-                <button className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={handleDelete}>
-                  <Trash2 className="w-4 h-4" /> Delete photo
-                </button>
+                {canDeletePhoto && (
+                  <>
+                    <hr className="my-1" />
+                    <button className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={handleDelete}>
+                      <Trash2 className="w-4 h-4" /> Delete photo
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
