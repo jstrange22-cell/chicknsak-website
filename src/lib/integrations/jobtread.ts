@@ -48,10 +48,6 @@ export interface JobTreadJob {
   description?: string;
   closedOn?: string;
   location?: JobTreadLocation;
-  /** JobTread returns customer data on jobs */
-  customer?: JobTreadContact;
-  /** Fallback alias for backward compatibility */
-  contact?: JobTreadContact;
   createdAt: string;
 }
 
@@ -122,8 +118,7 @@ function f(...names: string[]): Record<string, Record<string, never>> {
 const JOB_FIELDS = {
   ...f('id', 'name', 'number', 'status', 'description', 'closedOn', 'createdAt'),
   location: f('id', 'address', 'latitude', 'longitude'),
-  // JobTread uses "customer" as the contact entity on jobs
-  customer: f('id', 'name', 'email', 'phone', 'company'),
+  // Contact info fetched separately via getJobContacts
 };
 
 // ---------------------------------------------------------------------------
@@ -424,6 +419,62 @@ export class JobTreadClient {
     });
 
     return data.job;
+  }
+
+  // -----------------------------------------------------------------------
+  // Contacts — try multiple field names since Pave schema varies
+  // -----------------------------------------------------------------------
+
+  /**
+   * Try to fetch contact/customer info for a job.
+   * The Pave API field name varies — we try "contacts" first,
+   * then "accounts", then query the job directly for common fields.
+   * Returns null if no contact info is available.
+   */
+  async getJobContacts(jobId: string): Promise<JobTreadContact | null> {
+    // Attempt 1: try "contacts" collection on the job
+    try {
+      const data = await this.query<{
+        job: {
+          contacts?: { nodes: JobTreadContact[] };
+        };
+      }>({
+        job: {
+          $: { id: jobId },
+          contacts: {
+            $: { size: 1 },
+            nodes: f('id', 'name', 'email', 'phone', 'company'),
+          },
+        },
+      });
+      const nodes = data.job?.contacts?.nodes;
+      if (nodes && nodes.length > 0) return nodes[0];
+    } catch {
+      // Field doesn't exist, try next
+    }
+
+    // Attempt 2: try "accounts" collection
+    try {
+      const data = await this.query<{
+        job: {
+          accounts?: { nodes: JobTreadContact[] };
+        };
+      }>({
+        job: {
+          $: { id: jobId },
+          accounts: {
+            $: { size: 1 },
+            nodes: f('id', 'name', 'email', 'phone', 'company'),
+          },
+        },
+      });
+      const nodes = data.job?.accounts?.nodes;
+      if (nodes && nodes.length > 0) return nodes[0];
+    } catch {
+      // Field doesn't exist either
+    }
+
+    return null;
   }
 
   // -----------------------------------------------------------------------

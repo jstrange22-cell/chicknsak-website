@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   DollarSign,
   Plus,
@@ -12,6 +12,8 @@ import {
   Clock,
   AlertCircle,
   Search,
+  RefreshCw,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -23,6 +25,8 @@ import {
   usePaymentStats,
 } from '@/hooks/usePaymentRequests';
 import { useProjects } from '@/hooks/useProjects';
+import { useIntegration } from '@/hooks/useIntegrations';
+import { getQBOInvoices, type QBOConfig } from '@/lib/integrations/quickbooksSync';
 import { cn } from '@/lib/utils';
 import type { PaymentStatus, PaymentLineItem } from '@/types';
 
@@ -376,15 +380,57 @@ function CreatePaymentModal({ isOpen, onClose }: CreatePaymentModalProps) {
 // Main Payments Page
 // ============================================================================
 
+// QuickBooks invoice type (from QBO API response)
+interface QBOInvoice {
+  Id: string;
+  DocNumber?: string;
+  CustomerRef?: { value: string; name: string };
+  TotalAmt: number;
+  Balance: number;
+  DueDate?: string;
+  TxnDate?: string;
+  EmailStatus?: string;
+}
+
 export default function PaymentsPage() {
   const { data: payments, isLoading } = usePaymentsByCompany();
   const { totalOutstandingCents, totalPaidCents, pendingCount } = usePaymentStats();
   const sendPayment = useSendPaymentRequest();
 
+  const [activeTab, setActiveTab] = useState<'requests' | 'quickbooks'>('requests');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | 'all'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // QuickBooks state
+  const qbIntegration = useIntegration('quickbooks');
+  const isQBConnected = !!qbIntegration?.isActive;
+  const [qbInvoices, setQbInvoices] = useState<QBOInvoice[]>([]);
+  const [qbLoading, setQbLoading] = useState(false);
+  const [qbError, setQbError] = useState<string | null>(null);
+
+  // Load QuickBooks invoices when connected and tab is active
+  const loadQBInvoices = async () => {
+    if (!qbIntegration?.config) return;
+    setQbLoading(true);
+    setQbError(null);
+    try {
+      const config = qbIntegration.config as unknown as QBOConfig;
+      const result = await getQBOInvoices(config);
+      setQbInvoices((result.invoices as QBOInvoice[]) ?? []);
+    } catch (err) {
+      setQbError(err instanceof Error ? err.message : 'Failed to load invoices');
+    }
+    setQbLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'quickbooks' && isQBConnected && qbInvoices.length === 0 && !qbLoading) {
+      void loadQBInvoices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isQBConnected]);
 
   // Filtered payments
   const filteredPayments = useMemo(() => {
@@ -504,6 +550,120 @@ export default function PaymentsPage() {
         </Card>
       </div>
 
+      {/* Tabs — Payment Requests vs QuickBooks */}
+      {isQBConnected && (
+        <div className="mb-4 flex gap-1 rounded-lg bg-slate-100 p-1">
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={cn(
+              'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'requests'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700',
+            )}
+          >
+            <DollarSign className="mr-1.5 inline h-4 w-4" />
+            Payment Requests
+          </button>
+          <button
+            onClick={() => setActiveTab('quickbooks')}
+            className={cn(
+              'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'quickbooks'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700',
+            )}
+          >
+            <FileText className="mr-1.5 inline h-4 w-4" />
+            QuickBooks Invoices
+          </button>
+        </div>
+      )}
+
+      {/* QuickBooks Invoices Tab */}
+      {activeTab === 'quickbooks' && isQBConnected && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">QuickBooks Online Invoices</h2>
+            <Button variant="outline" size="sm" onClick={() => void loadQBInvoices()} disabled={qbLoading}>
+              {qbLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh
+            </Button>
+          </div>
+
+          {qbError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm text-red-700">{qbError}</p>
+            </div>
+          )}
+
+          {qbLoading && qbInvoices.length === 0 ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+          ) : qbInvoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-slate-200 bg-white py-16">
+              <FileText className="mb-3 h-10 w-10 text-slate-300" />
+              <p className="text-sm text-slate-500">No invoices found in QuickBooks</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
+                      <th className="px-4 py-3">Invoice #</th>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3 text-right">Total</th>
+                      <th className="px-4 py-3 text-right">Balance</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Due Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {qbInvoices.map((inv) => {
+                      const isPaid = inv.Balance === 0;
+                      const isOverdue = inv.DueDate && new Date(inv.DueDate) < new Date() && !isPaid;
+                      return (
+                        <tr key={inv.Id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 text-sm font-medium text-slate-700">
+                            #{inv.DocNumber || inv.Id}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-600">
+                            {inv.CustomerRef?.name || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-semibold text-slate-900">
+                            ${inv.TotalAmt?.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-medium text-slate-700">
+                            ${inv.Balance?.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                              isPaid ? 'bg-emerald-100 text-emerald-700'
+                                : isOverdue ? 'bg-red-100 text-red-700'
+                                : 'bg-amber-100 text-amber-700'
+                            )}>
+                              {isPaid ? 'Paid' : isOverdue ? 'Overdue' : 'Open'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-500">
+                            {inv.DueDate ? new Date(inv.DueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Payment Requests Tab */}
+      {activeTab === 'requests' && (<>
       {/* Filters Bar */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -666,6 +826,8 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+
+      </>)}
 
       {/* Send error toast */}
       {sendPayment.isError && (

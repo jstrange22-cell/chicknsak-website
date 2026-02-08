@@ -146,12 +146,18 @@ export async function syncJobsToProjects(
       if (job.location?.longitude != null) baseData.longitude = job.location.longitude;
       if (job.description) baseData.description = job.description;
 
-      // Map contact/customer data — JobTread uses "customer" field
-      const contactInfo = job.customer || job.contact;
-      if (contactInfo?.name) baseData.customerName = contactInfo.name;
-      if (contactInfo?.email) baseData.customerEmail = contactInfo.email;
-      if (contactInfo?.phone) baseData.customerPhone = contactInfo.phone;
-      if (contactInfo?.company) baseData.customerCompany = contactInfo.company;
+      // Fetch contact info separately — the Pave API doesn't include
+      // contact data in the job listing query directly
+      try {
+        const contactInfo = await client.getJobContacts(job.id);
+        if (contactInfo?.name) baseData.customerName = contactInfo.name;
+        if (contactInfo?.email) baseData.customerEmail = contactInfo.email;
+        if (contactInfo?.phone) baseData.customerPhone = contactInfo.phone;
+        if (contactInfo?.company) baseData.customerCompany = contactInfo.company;
+      } catch {
+        // Contact info is optional — don't fail the sync if it's unavailable
+        console.warn(`[jobtreadSync] Could not fetch contact info for job ${job.id}`);
+      }
 
       if (existing.empty) {
         // Create a new project — set status from JobTread mapping
