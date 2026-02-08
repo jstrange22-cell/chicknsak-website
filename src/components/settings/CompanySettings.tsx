@@ -252,7 +252,7 @@ export function CompanySettings() {
         </div>
         <div>
           <p className="font-medium text-slate-900">{name}</p>
-          <p className="text-xs text-slate-500">JobMate</p>
+          <p className="text-xs text-slate-500">ProjectWorks</p>
         </div>
       </div>
 

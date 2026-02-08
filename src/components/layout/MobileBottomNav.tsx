@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Home,
   FolderOpen,
-  Clock,
+  MessageCircle,
   ClipboardCheck,
   HardHat,
 } from 'lucide-react';
@@ -19,7 +19,7 @@ const mainNavItems: NavItem[] = [
   { icon: Home, label: 'Home', path: '/' },
   { icon: FolderOpen, label: 'Projects', path: '/projects' },
   { icon: HardHat, label: 'JobMate', path: '/ai-chat', isCenter: true },
-  { icon: Clock, label: 'Timeclock', path: '/timeclock' },
+  { icon: MessageCircle, label: 'Messages', path: '/messages' },
   { icon: ClipboardCheck, label: 'Checklists', path: '/checklists' },
 ];
 

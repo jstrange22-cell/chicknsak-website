@@ -35,7 +35,7 @@ interface NavSection {
 
 const navSections: NavSection[] = [
   {
-    title: 'JOBMATE',
+    title: 'PROJECTWORKS',
     items: [
       { icon: MapPin, label: 'Projects', path: '/projects' },
       { icon: Image, label: 'Photos', path: '/camera' },

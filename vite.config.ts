@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'img/*'],
       manifest: {
-        name: 'JobMate',
-        short_name: 'JobMate',
+        name: 'ProjectWorks',
+        short_name: 'ProjectWorks',
         description: 'Jobsite photo documentation and project management',
         start_url: '/',
         theme_color: '#0f172a',

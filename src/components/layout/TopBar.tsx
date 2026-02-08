@@ -38,7 +38,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
   const { data: unreadCount = 0 } = useUnreadCount(user?.uid);
 
   const isHome = location.pathname === '/';
-  const pageTitle = pageTitles[location.pathname] || 'JobMate';
+  const pageTitle = pageTitles[location.pathname] || 'ProjectWorks';
 
   return (
     <header

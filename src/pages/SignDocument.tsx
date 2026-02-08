@@ -295,7 +295,7 @@ export default function SignDocument() {
       <div className="border-t border-slate-200 bg-white">
         <div className="mx-auto max-w-2xl px-4 py-4">
           <p className="text-center text-xs text-slate-400">
-            Powered by JobMate
+            Powered by ProjectWorks
           </p>
         </div>
       </div>

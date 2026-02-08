@@ -241,7 +241,7 @@ export default function Index() {
       {/* ================================================================
           DARK HERO HEADER
           ================================================================ */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 md:px-8 pt-6 pb-20 md:pb-24 md:rounded-2xl md:-mx-0">
+      <div className="bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800/90 px-5 md:px-8 pt-6 pb-20 md:pb-24 md:rounded-2xl md:-mx-0">
         <div className="flex items-center gap-2.5 mb-1">
           <GreetingIcon className="h-5 w-5 text-amber-400" />
           <span className="text-amber-400/90 text-sm font-medium">{greetingText}</span>
