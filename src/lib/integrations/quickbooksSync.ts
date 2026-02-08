@@ -15,6 +15,7 @@ export interface QBOConfig {
   clientSecret: string;
   realmId: string;
   environment: 'sandbox' | 'production';
+  accessToken?: string;
 }
 
 export interface QBOInvoiceLine {

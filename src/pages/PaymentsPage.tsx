@@ -416,7 +416,11 @@ export default function PaymentsPage() {
     setQbLoading(true);
     setQbError(null);
     try {
-      const config = qbIntegration.config as unknown as QBOConfig;
+      const config: QBOConfig = {
+        ...(qbIntegration.config as unknown as QBOConfig),
+        // Pass the OAuth access token from the integration record
+        accessToken: qbIntegration.accessToken || (qbIntegration.config as Record<string, unknown>).accessToken as string | undefined,
+      };
       const result = await getQBOInvoices(config);
       setQbInvoices((result.invoices as QBOInvoice[]) ?? []);
     } catch (err) {

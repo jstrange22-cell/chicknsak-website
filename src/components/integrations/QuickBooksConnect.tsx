@@ -23,6 +23,7 @@ interface QBOConfig {
   clientSecret: string;
   realmId: string;
   environment: 'sandbox' | 'production';
+  accessToken?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ export default function QuickBooksConnect() {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [realmId, setRealmId] = useState('');
+  const [qboAccessToken, setQboAccessToken] = useState('');
   const [environment, setEnvironment] = useState<'sandbox' | 'production'>('production');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -59,6 +61,7 @@ export default function QuickBooksConnect() {
         clientSecret,
         realmId,
         environment,
+        accessToken: qboAccessToken || undefined,
       });
 
       setTestResult({
@@ -82,14 +85,15 @@ export default function QuickBooksConnect() {
     try {
       await connectMutation.mutateAsync({
         provider: 'quickbooks',
-        accessToken: clientId, // Store client ID as access token for now
+        accessToken: qboAccessToken || clientId,
         refreshToken: clientSecret,
         config: {
           clientId,
           clientSecret,
           realmId,
           environment,
-        } satisfies QBOConfig,
+          accessToken: qboAccessToken || undefined,
+        },
       });
       setShowForm(false);
       setTestResult(null);
@@ -233,6 +237,28 @@ export default function QuickBooksConnect() {
             onChange={(e) => setRealmId(e.target.value)}
             className="text-sm"
           />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-700 mb-1 block">Access Token (OAuth2)</label>
+          <Input
+            type="password"
+            placeholder="Paste your OAuth2 access token"
+            value={qboAccessToken}
+            onChange={(e) => setQboAccessToken(e.target.value)}
+            className="text-sm"
+          />
+          <p className="text-xs text-slate-400 mt-0.5">
+            Get this from the{' '}
+            <a
+              href="https://developer.intuit.com/app/developer/playground"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline"
+            >
+              Intuit OAuth Playground
+            </a>
+            . Required for API access.
+          </p>
         </div>
         <div>
           <label className="text-xs font-medium text-slate-700 mb-1 block">Environment</label>

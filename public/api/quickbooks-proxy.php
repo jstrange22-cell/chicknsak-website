@@ -47,9 +47,14 @@ $baseUrl = $env === 'sandbox'
     ? "https://sandbox-quickbooks.api.intuit.com/v3/company/$realmId"
     : "https://quickbooks.api.intuit.com/v3/company/$realmId";
 
-// For now, we use basic auth with client credentials
-// In production, you'd implement proper OAuth2 token flow
-$authHeader = 'Basic ' . base64_encode("$clientId:$clientSecret");
+// Use OAuth2 Bearer token if provided, otherwise fall back to Basic auth
+$accessToken = $creds['accessToken'] ?? '';
+if (!empty($accessToken)) {
+    $authHeader = 'Bearer ' . $accessToken;
+} else {
+    // Fallback: Basic auth with client credentials (for token exchange)
+    $authHeader = 'Basic ' . base64_encode("$clientId:$clientSecret");
+}
 
 function qboRequest($url, $method = 'GET', $postData = null, $authHeader = '') {
     $ch = curl_init($url);
