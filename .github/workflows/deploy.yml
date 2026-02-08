@@ -24,13 +24,22 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: AIzaSyDE5QEsMWvtQwnhMk5PmWSM3k6p6tb_SnQ
-          VITE_FIREBASE_AUTH_DOMAIN: structureworks-field.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: structureworks-field
-          VITE_FIREBASE_STORAGE_BUCKET: structureworks-field.firebasestorage.app
-          VITE_FIREBASE_MESSAGING_SENDER_ID: '239800124339'
-          VITE_FIREBASE_APP_ID: '1:239800124339:web:43c2ca7fe394a6535001c6'
-          VITE_FIREBASE_MEASUREMENT_ID: G-JWW0N1QM33
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: projectworks-8b692.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: projectworks-8b692
+          VITE_FIREBASE_STORAGE_BUCKET: projectworks-8b692.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '876322383528'
+          VITE_FIREBASE_APP_ID: '1:876322383528:web:654de92bee2c70015bc49d'
+          VITE_FIREBASE_MEASUREMENT_ID: G-3KCTDBLGR9
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_APP_URL: https://gray-barracuda-245114.hostingersite.com
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+
+      - name: Copy API files into dist
+        run: |
+          mkdir -p dist/api
+          cp public/api/jobtread-proxy.php dist/api/jobtread-proxy.php
+          cp public/api/.htaccess dist/api/.htaccess
 
       - name: Deploy to Hostinger via SSH
         uses: appleboy/scp-action@v0.1.7

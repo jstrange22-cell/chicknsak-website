@@ -25,7 +25,7 @@ export default function Camera() {
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [capturedPhoto, setCapturedPhoto] = useState<CapturedPhoto | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [, setIsSaving] = useState(false);
 
   const isNative = Capacitor.isNativePlatform();
 
