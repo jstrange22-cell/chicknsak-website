@@ -20,6 +20,7 @@ import {
   where,
   getDocs,
   doc,
+  getDoc,
   updateDoc,
   addDoc,
   serverTimestamp,
@@ -92,6 +93,8 @@ export default function UsersPage() {
   const [inviteJobTitle, setInviteJobTitle] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   const isAdmin = profile?.role === 'admin' || !profile?.role;
 
@@ -136,34 +139,61 @@ export default function UsersPage() {
     setIsInviting(true);
     setInviteError('');
     try {
-      await addDoc(collection(db, 'users'), {
+      const normalizedEmail = inviteEmail.trim().toLowerCase();
+
+      // Check for duplicate: email already in company users
+      const existingUserQuery = query(
+        collection(db, 'users'),
+        where('companyId', '==', profile.companyId),
+        where('email', '==', normalizedEmail)
+      );
+      const existingSnap = await getDocs(existingUserQuery);
+      if (!existingSnap.empty) {
+        setInviteError('A user with this email already exists in your company.');
+        setIsInviting(false);
+        return;
+      }
+
+      // Check for duplicate pending invitation
+      const existingInviteQuery = query(
+        collection(db, 'invitations'),
+        where('companyId', '==', profile.companyId),
+        where('email', '==', normalizedEmail),
+        where('status', '==', 'pending')
+      );
+      const existingInviteSnap = await getDocs(existingInviteQuery);
+      if (!existingInviteSnap.empty) {
+        setInviteError('A pending invitation already exists for this email.');
+        setIsInviting(false);
+        return;
+      }
+
+      // Get company name
+      let companyName = 'Your Company';
+      try {
+        const companyDoc = await getDoc(doc(db, 'companies', profile.companyId));
+        if (companyDoc.exists()) {
+          companyName = companyDoc.data().name || companyName;
+        }
+      } catch { /* use default */ }
+
+      const inviteToken = crypto.randomUUID();
+
+      await addDoc(collection(db, 'invitations'), {
         companyId: profile.companyId,
-        email: inviteEmail.trim().toLowerCase(),
+        companyName,
+        email: normalizedEmail,
         fullName: inviteFullName.trim(),
         role: inviteRole,
-        jobTitle: inviteJobTitle.trim() || null,
-        isActive: true,
-        notificationSettings: {
-          email: true,
-          push: true,
-          sms: false,
-          photoUploads: true,
-          comments: true,
-          mentions: true,
-          taskAssignments: true,
-        },
-        settings: {},
+        invitedBy: user.uid,
+        status: 'pending',
+        inviteToken,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      // Reset form and close modal
-      setInviteFullName('');
-      setInviteEmail('');
-      setInviteRole('standard');
-      setInviteJobTitle('');
-      setShowInviteModal(false);
-      await loadUsers();
+      // Show the signup link
+      setInviteLink(`${window.location.origin}/auth/signup?invite=${inviteToken}`);
     } catch (err) {
       console.error('Error inviting user:', err);
       setInviteError('Failed to invite user. Please try again.');
@@ -409,103 +439,195 @@ export default function UsersPage() {
             className="bg-white rounded-xl shadow-xl w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Invite Team Member
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowInviteModal(false);
-                  setInviteError('');
-                }}
-                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4">
-              {inviteError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
-                  {inviteError}
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  value={inviteFullName}
-                  onChange={(e) => setInviteFullName(e.target.value)}
-                  placeholder="John Doe"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  type="email"
-                  placeholder="john@company.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Role
-                </label>
-                <div className="relative">
-                  <select
-                    className="w-full h-12 appearance-none bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as UserRole)}
+            {/* Success state — show the invite link */}
+            {inviteLink ? (
+              <>
+                <div className="flex items-center justify-between p-5 border-b border-slate-200">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Invitation Created
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setInviteLink('');
+                      setInviteFullName('');
+                      setInviteEmail('');
+                      setInviteRole('standard');
+                      setInviteJobTitle('');
+                      loadUsers();
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
                   >
-                    {ROLE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Job Title
-                </label>
-                <Input
-                  value={inviteJobTitle}
-                  onChange={(e) => setInviteJobTitle(e.target.value)}
-                  placeholder="e.g. Project Manager"
-                />
-              </div>
-            </div>
+                <div className="p-5 space-y-4">
+                  <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                    <p className="text-sm font-medium text-emerald-800">
+                      Invitation created for {inviteFullName}!
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-1">
+                      Share this signup link with them via text, email, or WhatsApp.
+                    </p>
+                  </div>
 
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-200">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowInviteModal(false);
-                  setInviteError('');
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleInviteUser}
-                disabled={isInviting || !inviteFullName.trim() || !inviteEmail.trim()}
-                isLoading={isInviting}
-              >
-                {isInviting ? 'Inviting...' : 'Invite User'}
-              </Button>
-            </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Signup Link
+                    </label>
+                    <div className="flex items-stretch gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={inviteLink}
+                        className="flex-1 h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs text-slate-600"
+                      />
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(inviteLink);
+                          } catch {
+                            const input = document.createElement('textarea');
+                            input.value = inviteLink;
+                            document.body.appendChild(input);
+                            input.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(input);
+                          }
+                          setInviteLinkCopied(true);
+                          setTimeout(() => setInviteLinkCopied(false), 2000);
+                        }}
+                        className={cn(
+                          "h-10 px-3 rounded-lg text-sm font-medium inline-flex items-center gap-1.5 transition-colors",
+                          inviteLinkCopied
+                            ? "bg-emerald-500 text-white"
+                            : "bg-blue-500 text-white hover:bg-blue-600"
+                        )}
+                      >
+                        {inviteLinkCopied ? '✓ Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setInviteLink('');
+                      setInviteFullName('');
+                      setInviteEmail('');
+                      setInviteRole('standard');
+                      setInviteJobTitle('');
+                      loadUsers();
+                    }}
+                  >
+                    Done
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Modal Header */}
+                <div className="flex items-center justify-between p-5 border-b border-slate-200">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Invite Team Member
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setInviteError('');
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-5 space-y-4">
+                  {inviteError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                      {inviteError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      value={inviteFullName}
+                      onChange={(e) => setInviteFullName(e.target.value)}
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      type="email"
+                      placeholder="john@company.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Role
+                    </label>
+                    <div className="relative">
+                      <select
+                        className="w-full h-12 appearance-none bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        value={inviteRole}
+                        onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Job Title
+                    </label>
+                    <Input
+                      value={inviteJobTitle}
+                      onChange={(e) => setInviteJobTitle(e.target.value)}
+                      placeholder="e.g. Project Manager"
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setInviteError('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleInviteUser}
+                    disabled={isInviting || !inviteFullName.trim() || !inviteEmail.trim()}
+                    isLoading={isInviting}
+                  >
+                    {isInviting ? 'Creating...' : 'Create Invite'}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

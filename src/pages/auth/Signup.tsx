@@ -1,9 +1,12 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuthContext } from '@/components/auth/AuthProvider';
+import type { Invitation } from '@/types';
 
 const signupSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -19,13 +22,41 @@ type SignupForm = z.infer<typeof signupSchema>;
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
   const { signUp, signInWithGoogle, error, clearError } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<SignupForm>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
   });
+
+  // Fetch invitation details if token is present
+  useEffect(() => {
+    if (!inviteToken) return;
+    const fetchInvitation = async () => {
+      try {
+        const q = query(
+          collection(db, 'invitations'),
+          where('inviteToken', '==', inviteToken),
+          where('status', '==', 'pending')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const inv = { id: snap.docs[0].id, ...snap.docs[0].data() } as Invitation;
+          setInvitation(inv);
+          // Pre-fill the email and name from the invitation
+          setValue('email', inv.email);
+          setValue('fullName', inv.fullName);
+        }
+      } catch (err) {
+        console.error('Error fetching invitation:', err);
+      }
+    };
+    fetchInvitation();
+  }, [inviteToken, setValue]);
 
   const onSubmit = async (data: SignupForm) => {
     setIsLoading(true);
@@ -62,9 +93,24 @@ export default function Signup() {
           alt="ProjectWorks"
           className="mx-auto h-20 w-20 object-contain mb-2"
         />
-        <h1 className="text-2xl font-bold text-slate-900 text-center mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 text-center mb-6">
           ProjectWorks
         </h1>
+
+        {/* Invitation banner */}
+        {invitation && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 mb-6">
+            <p className="text-sm font-medium text-blue-800">
+              You've been invited to join
+            </p>
+            <p className="text-lg font-bold text-blue-900 mt-0.5">
+              {invitation.companyName}
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              as {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)} · Create your account below to get started.
+            </p>
+          </div>
+        )}
 
         {/* Signup form */}
         <form onSubmit={handleSubmit(onSubmit)}>

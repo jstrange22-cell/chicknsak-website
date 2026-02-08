@@ -11,10 +11,10 @@ import {
   onAuthStateChanged,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, getDoc, getDocFromCache, setDoc, updateDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromCache, setDoc, updateDoc, serverTimestamp, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
 import { auth, db } from '@/lib/firebase';
-import type { User } from '@/types';
+import type { User, UserRole } from '@/types';
 
 interface AuthState {
   user: FirebaseUser | null;
@@ -111,24 +111,84 @@ export function useAuth() {
   }, []);
 
 
+  // Helper: check for pending invitation or create a new company
+  const claimInvitationOrCreateCompany = useCallback(
+    async (
+      uid: string,
+      email: string,
+      fullName: string
+    ): Promise<{ companyId: string; role: UserRole; invitationClaimed: boolean }> => {
+      const normalizedEmail = email.toLowerCase().trim();
+
+      try {
+        // Query for pending invitations matching this email
+        const invitationsQuery = query(
+          collection(db, 'invitations'),
+          where('email', '==', normalizedEmail),
+          where('status', '==', 'pending')
+        );
+        const snapshot = await getDocs(invitationsQuery);
+
+        if (!snapshot.empty) {
+          // Take the first (most relevant) pending invitation
+          const invDoc = snapshot.docs[0];
+          const invitation = invDoc.data();
+
+          // Claim the invitation
+          await updateDoc(doc(db, 'invitations', invDoc.id), {
+            status: 'accepted',
+            acceptedByUid: uid,
+            acceptedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+
+          console.log('Invitation claimed for company:', invitation.companyId);
+          return {
+            companyId: invitation.companyId as string,
+            role: (invitation.role as UserRole) || 'standard',
+            invitationClaimed: true,
+          };
+        }
+      } catch (error) {
+        console.warn('Invitation lookup failed, creating new company:', error);
+      }
+
+      // No invitation found — create a new company (existing behavior)
+      const companyRef = await addDoc(collection(db, 'companies'), {
+        name: `${fullName}'s Company`,
+        ownerId: uid,
+        plan: 'free',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      return {
+        companyId: companyRef.id,
+        role: 'admin' as UserRole,
+        invitationClaimed: false,
+      };
+    },
+    []
+  );
+
   // Helper: create profile for a new Google user
   const createGoogleProfile = useCallback(async (user: FirebaseUser) => {
     const displayName = user.displayName || user.email?.split('@')[0] || 'User';
+    const email = user.email || '';
 
-    const companyRef = await addDoc(collection(db, 'companies'), {
-      name: `${displayName}'s Company`,
-      ownerId: user.uid,
-      plan: 'free',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    // Check for pending invitation or create new company
+    const { companyId, role } = await claimInvitationOrCreateCompany(
+      user.uid,
+      email,
+      displayName
+    );
 
     await setDoc(doc(db, 'users', user.uid), {
-      email: user.email,
+      email,
       fullName: displayName,
       avatarUrl: user.photoURL,
-      companyId: companyRef.id,
-      role: 'admin',
+      companyId,
+      role,
       isActive: true,
       notificationSettings: {
         email: true,
@@ -145,7 +205,7 @@ export function useAuth() {
     });
 
     return fetchProfile(user.uid);
-  }, [fetchProfile]);
+  }, [fetchProfile, claimInvitationOrCreateCompany]);
 
   // Handle redirect result (for Google sign-in via redirect)
   useEffect(() => {
@@ -243,21 +303,19 @@ export function useAuth() {
       try {
         const { user } = await createUserWithEmailAndPassword(auth, email, password);
 
-        // Auto-create a company for the new user (they are the owner/admin)
-        const companyRef = await addDoc(collection(db, 'companies'), {
-          name: `${fullName}'s Company`,
-          ownerId: user.uid,
-          plan: 'free',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        // Check for pending invitation or create new company
+        const { companyId, role } = await claimInvitationOrCreateCompany(
+          user.uid,
+          email,
+          fullName
+        );
 
-        // Create user profile in Firestore with companyId
+        // Create user profile in Firestore keyed by Auth UID
         await setDoc(doc(db, 'users', user.uid), {
           email,
           fullName,
-          companyId: companyRef.id,
-          role: 'admin', // Company creator is admin
+          companyId,
+          role,
           isActive: true,
           notificationSettings: {
             email: true,
@@ -281,7 +339,7 @@ export function useAuth() {
           isAuthenticated: true,
           error: null,
         });
-        
+
         return { user, profile };
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Signup failed';
@@ -289,7 +347,7 @@ export function useAuth() {
         throw error;
       }
     },
-    [fetchProfile]
+    [fetchProfile, claimInvitationOrCreateCompany]
   );
 
 

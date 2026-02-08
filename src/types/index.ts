@@ -48,6 +48,22 @@ export interface NotificationSettings {
   taskAssignments: boolean;
 }
 
+// Invitation system
+export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
+
+export interface Invitation extends BaseDocument {
+  companyId: string;
+  companyName: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+  invitedBy: string;
+  status: InvitationStatus;
+  inviteToken: string;
+  acceptedAt?: Timestamp;
+  acceptedByUid?: string;
+}
+
 // Project status
 export type ProjectStatus = 'active' | 'completed' | 'archived' | 'on_hold' | 'lead';
 
