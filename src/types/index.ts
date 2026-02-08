@@ -593,11 +593,12 @@ export interface ChannelMember {
 }
 
 export interface MessageAttachment {
-  type: 'image' | 'file';
+  type: 'image' | 'file' | 'audio';
   url: string;
   name: string;
   size?: number;
   thumbnailUrl?: string;
+  duration?: number; // audio duration in seconds
 }
 
 export interface Message extends BaseDocument {
@@ -610,6 +611,16 @@ export interface Message extends BaseDocument {
   isEdited: boolean;
   reactions?: Record<string, string[]>;
   readBy?: string[];
+  // Pinned messages
+  isPinned?: boolean;
+  pinnedAt?: Timestamp;
+  pinnedBy?: string;
+  // Voice messages
+  isVoiceMessage?: boolean;
+  audioDuration?: number; // seconds
+  // Scheduled messages
+  scheduledAt?: Timestamp;
+  isScheduled?: boolean;
 }
 
 // ============================================================

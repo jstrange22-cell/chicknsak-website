@@ -155,13 +155,15 @@ export function useChannelMessages(channelId: string | undefined) {
           id: d.id,
           ...d.data(),
         })) as Message[];
+        // Filter out scheduled messages from the main view
+        const visibleMsgs = msgs.filter((m) => !m.isScheduled);
         // Sort descending by createdAt, take last 50, then reverse for display
-        msgs.sort((a, b) => {
+        visibleMsgs.sort((a, b) => {
           const aTime = (a.createdAt as any)?.toMillis?.() ?? 0;
           const bTime = (b.createdAt as any)?.toMillis?.() ?? 0;
           return bTime - aTime;
         });
-        setMessages(msgs.slice(0, 50).reverse());
+        setMessages(visibleMsgs.slice(0, 50).reverse());
         setIsLoading(false);
       },
       (err) => {
@@ -686,6 +688,296 @@ export function useMessageSearch(messages: Message[]) {
       setSearchResults([]);
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// useStartDirectMessage — find or create a 1-on-1 DM channel
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// usePinMessage — pin/unpin a message
+// ---------------------------------------------------------------------------
+
+export function usePinMessage() {
+  const { user } = useAuthContext();
+
+  const pinMessage = useCallback(
+    async (messageId: string) => {
+      if (!user?.uid) return;
+      const msgRef = doc(db, 'messages', messageId);
+      await updateDoc(msgRef, {
+        isPinned: true,
+        pinnedAt: serverTimestamp(),
+        pinnedBy: user.uid,
+      });
+    },
+    [user?.uid],
+  );
+
+  const unpinMessage = useCallback(
+    async (messageId: string) => {
+      if (!user?.uid) return;
+      const msgRef = doc(db, 'messages', messageId);
+      await updateDoc(msgRef, {
+        isPinned: false,
+        pinnedAt: null,
+        pinnedBy: null,
+      });
+    },
+    [user?.uid],
+  );
+
+  const togglePin = useCallback(
+    async (messageId: string, currentlyPinned?: boolean) => {
+      if (currentlyPinned) {
+        await unpinMessage(messageId);
+      } else {
+        await pinMessage(messageId);
+      }
+    },
+    [pinMessage, unpinMessage],
+  );
+
+  return { pinMessage, unpinMessage, togglePin };
+}
+
+// ---------------------------------------------------------------------------
+// usePinnedMessages — get pinned messages for a channel
+// ---------------------------------------------------------------------------
+
+export function usePinnedMessages(channelId: string | undefined) {
+  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    if (!channelId) {
+      setPinnedMessages([]);
+      return;
+    }
+
+    const pinnedQ = query(
+      collection(db, 'messages'),
+      where('channelId', '==', channelId),
+      where('isPinned', '==', true),
+    );
+
+    const unsubscribe = onSnapshot(pinnedQ, (snapshot) => {
+      const msgs = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as Message[];
+      msgs.sort((a, b) => {
+        const aTime = (a.pinnedAt as any)?.toMillis?.() ?? 0;
+        const bTime = (b.pinnedAt as any)?.toMillis?.() ?? 0;
+        return bTime - aTime;
+      });
+      setPinnedMessages(msgs);
+    });
+
+    return () => unsubscribe();
+  }, [channelId]);
+
+  return pinnedMessages;
+}
+
+// ---------------------------------------------------------------------------
+// useSendVoiceMessage — send a voice message with audio upload
+// ---------------------------------------------------------------------------
+
+export function useSendVoiceMessage() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthContext();
+
+  return useMutation({
+    mutationFn: async ({
+      channelId,
+      audioBlob,
+      duration,
+    }: {
+      channelId: string;
+      audioBlob: Blob;
+      duration: number;
+    }) => {
+      if (!user?.uid) throw new Error('Not authenticated');
+
+      // Import storage dynamically to avoid circular deps
+      const { ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+      const { storage } = await import('@/lib/firebase');
+
+      const fileName = `voice_${Date.now()}.webm`;
+      const storagePath = `messages/${channelId}/voice/${fileName}`;
+      const storageRef = ref(storage, storagePath);
+
+      // Upload audio
+      const uploadTask = uploadBytesResumable(storageRef, audioBlob, {
+        contentType: 'audio/webm',
+      });
+
+      const downloadUrl = await new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          null,
+          (error) => reject(error),
+          async () => {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(url);
+          },
+        );
+      });
+
+      // Create message
+      const messageData = {
+        channelId,
+        userId: user.uid,
+        body: '',
+        attachments: [{
+          type: 'audio' as const,
+          url: downloadUrl,
+          name: fileName,
+          duration,
+        }],
+        mentions: [],
+        parentMessageId: null,
+        isEdited: false,
+        isVoiceMessage: true,
+        audioDuration: duration,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const docRef = await addDoc(collection(db, 'messages'), messageData);
+      return { id: docRef.id, ...messageData };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useScheduleMessage — create a scheduled message
+// ---------------------------------------------------------------------------
+
+export function useScheduleMessage() {
+  const queryClient = useQueryClient();
+  const { user } = useAuthContext();
+
+  return useMutation({
+    mutationFn: async ({
+      channelId,
+      body,
+      scheduledAt,
+      attachments = [],
+      mentions = [],
+    }: {
+      channelId: string;
+      body: string;
+      scheduledAt: Date;
+      attachments?: Message['attachments'];
+      mentions?: string[];
+    }) => {
+      if (!user?.uid) throw new Error('Not authenticated');
+
+      const messageData = {
+        channelId,
+        userId: user.uid,
+        body,
+        attachments,
+        mentions,
+        parentMessageId: null,
+        isEdited: false,
+        isScheduled: true,
+        scheduledAt: Timestamp.fromDate(scheduledAt),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const docRef = await addDoc(collection(db, 'messages'), messageData);
+      return { id: docRef.id, ...messageData };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['scheduledMessages'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useScheduledMessages — get scheduled messages for a channel
+// ---------------------------------------------------------------------------
+
+export function useScheduledMessages(channelId: string | undefined) {
+  const { user } = useAuthContext();
+
+  return useQuery({
+    queryKey: ['scheduledMessages', channelId, user?.uid],
+    queryFn: async (): Promise<Message[]> => {
+      if (!channelId || !user?.uid) return [];
+
+      const scheduledQ = query(
+        collection(db, 'messages'),
+        where('channelId', '==', channelId),
+        where('userId', '==', user.uid),
+        where('isScheduled', '==', true),
+      );
+      const snap = await getDocs(scheduledQ);
+      const msgs = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as Message[];
+
+      // Sort by scheduledAt ascending
+      msgs.sort((a, b) => {
+        const aTime = (a.scheduledAt as any)?.toMillis?.() ?? 0;
+        const bTime = (b.scheduledAt as any)?.toMillis?.() ?? 0;
+        return aTime - bTime;
+      });
+
+      return msgs;
+    },
+    enabled: !!channelId && !!user?.uid,
+    refetchInterval: 30_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useCancelScheduledMessage — delete a scheduled message
+// ---------------------------------------------------------------------------
+
+export function useCancelScheduledMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      await deleteDoc(doc(db, 'messages', messageId));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduledMessages'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useSendScheduledNow — send a scheduled message immediately
+// ---------------------------------------------------------------------------
+
+export function useSendScheduledNow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const msgRef = doc(db, 'messages', messageId);
+      await updateDoc(msgRef, {
+        isScheduled: false,
+        scheduledAt: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduledMessages'] });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
