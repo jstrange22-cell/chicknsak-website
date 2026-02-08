@@ -215,7 +215,7 @@ export function useChannelMessages(channelId: string | undefined) {
 
 export function useSendMessage() {
   const queryClient = useQueryClient();
-  const { user } = useAuthContext();
+  const { user, profile } = useAuthContext();
 
   return useMutation({
     mutationFn: async ({
@@ -246,6 +246,54 @@ export function useSendMessage() {
       };
 
       const docRef = await addDoc(collection(db, 'messages'), messageData);
+
+      // Create in-app notifications for other channel members
+      try {
+        const memberQ = query(
+          collection(db, 'channelMembers'),
+          where('channelId', '==', channelId),
+        );
+        const memberSnap = await getDocs(memberQ);
+        const senderName = profile?.fullName ?? 'Someone';
+        const companyId = profile?.companyId ?? '';
+
+        // Get channel name for notification
+        let channelName = '';
+        try {
+          const channelDoc = await getDoc(doc(db, 'channels', channelId));
+          if (channelDoc.exists()) {
+            channelName = (channelDoc.data().name as string) ?? '';
+          }
+        } catch { /* ignore */ }
+
+        const notifTitle = channelName ? `${senderName} in ${channelName}` : senderName;
+        const notifBody = body || (attachments.length > 0 ? '📎 Attachment' : 'New message');
+
+        await Promise.all(
+          memberSnap.docs
+            .map((d) => d.data().userId as string)
+            .filter((memberId) => memberId !== user.uid)
+            .map((memberId) =>
+              addDoc(collection(db, 'notifications'), {
+                userId: memberId,
+                companyId,
+                title: notifTitle,
+                body: notifBody,
+                type: 'message',
+                entityType: 'channel',
+                entityId: channelId,
+                actionUrl: `/messages?channel=${channelId}`,
+                isRead: false,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              }),
+            ),
+        );
+      } catch (err) {
+        // Don't block message sending if notifications fail
+        console.warn('Failed to create message notifications:', err);
+      }
+
       return { id: docRef.id, ...messageData };
     },
     onSuccess: () => {
