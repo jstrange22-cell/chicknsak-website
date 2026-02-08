@@ -1,8 +1,14 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { storage, db } from './firebase';
+import { db } from './firebase';
 import { compressImage, generateThumbnail, getImageDimensions, generateFilename } from './imageProcessing';
 import { logActivity } from './activityLogger';
+
+/**
+ * Upload API endpoint — hosted on the same Hostinger server as the app.
+ * Firebase Storage requires the Blaze (paid) plan, so we upload photos
+ * directly to the web server via a PHP endpoint instead.
+ */
+const UPLOAD_URL = `${window.location.origin}/api/upload.php`;
 
 interface UploadPhotoParams {
   file: Blob;
@@ -25,37 +31,6 @@ interface UploadResult {
   thumbnailUrl: string;
   storagePath: string;
   thumbnailPath: string;
-}
-
-/**
- * Parse a Firebase Storage error into a user-friendly message.
- */
-function getStorageErrorMessage(error: unknown): string {
-  if (error && typeof error === 'object' && 'code' in error) {
-    const code = (error as { code: string }).code;
-    switch (code) {
-      case 'storage/unauthorized':
-      case 'storage/unauthenticated':
-        return 'You do not have permission to upload photos. Please sign in again and try once more.';
-      case 'storage/quota-exceeded':
-        return 'Storage quota has been exceeded. Please contact your administrator to upgrade the storage plan.';
-      case 'storage/canceled':
-        return 'The upload was canceled.';
-      case 'storage/retry-limit-exceeded':
-        return 'Upload failed after multiple retries. Please check your internet connection and try again.';
-      case 'storage/invalid-checksum':
-        return 'The file was corrupted during upload. Please try again.';
-      case 'storage/server-file-wrong-size':
-        return 'Upload verification failed (file size mismatch). Please try again.';
-      case 'storage/unknown':
-      default:
-        return `Upload failed (${code}). Please check your internet connection and try again.`;
-    }
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'An unexpected error occurred during upload.';
 }
 
 /**
@@ -97,20 +72,12 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
     tags = [],
   } = params;
 
-  const filename = generateFilename();
-  const thumbFilename = `thumb_${filename}`;
-
-  const storagePath = `photos/${companyId}/${projectId}/${filename}`;
-  const thumbnailPath = `photos/${companyId}/${projectId}/thumbs/${thumbFilename}`;
-
   // ---- Step 1: Process images ----
   let compressedImage: Blob;
   let thumbnail: Blob;
   let dimensions: { width: number; height: number };
 
   try {
-    // Run compression and thumbnail in parallel, but get dimensions separately
-    // so that a thumbnail failure does not block the main image.
     [compressedImage, thumbnail, dimensions] = await Promise.all([
       compressImage(file, 2048, 0.85),
       generateThumbnail(file, 400, 0.6),
@@ -125,40 +92,63 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
     );
   }
 
-  // ---- Step 2: Upload to Firebase Storage ----
+  // ---- Step 2: Upload to Hostinger server via PHP endpoint ----
   let originalUrl: string;
   let thumbnailUrl: string;
+  let storagePath: string;
+  let thumbnailPath: string;
 
   try {
-    const originalRef = ref(storage, storagePath);
-    const thumbnailRef = ref(storage, thumbnailPath);
+    // Build FormData with the photo and thumbnail blobs
+    const formData = new FormData();
+    formData.append('photo', compressedImage, generateFilename());
+    formData.append('thumbnail', thumbnail, `thumb_${generateFilename()}`);
+    formData.append('companyId', companyId);
+    formData.append('projectId', projectId);
 
-    const [originalSnapshot, thumbnailSnapshot] = await Promise.all([
-      uploadBytes(originalRef, compressedImage, { contentType: 'image/jpeg' }),
-      uploadBytes(thumbnailRef, thumbnail, { contentType: 'image/jpeg' }),
-    ]);
+    const response = await fetch(UPLOAD_URL, {
+      method: 'POST',
+      body: formData,
+    });
 
-    [originalUrl, thumbnailUrl] = await Promise.all([
-      getDownloadURL(originalSnapshot.ref),
-      getDownloadURL(thumbnailSnapshot.ref),
-    ]);
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = 'Upload failed';
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorMessage;
+      } catch {
+        errorMessage = `Upload failed (HTTP ${response.status})`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+
+    if (!result.success || !result.url) {
+      throw new Error(result.error || 'Upload failed — no URL returned');
+    }
+
+    originalUrl = result.url;
+    thumbnailUrl = result.thumbnailUrl || result.url;
+    storagePath = result.storagePath || '';
+    thumbnailPath = result.thumbnailPath || '';
   } catch (uploadError) {
-    const errorCode = uploadError && typeof uploadError === 'object' && 'code' in uploadError
-      ? (uploadError as { code: string }).code
-      : 'unknown';
-    const errorServerResponse = uploadError && typeof uploadError === 'object' && 'serverResponse' in uploadError
-      ? (uploadError as { serverResponse: string }).serverResponse
-      : null;
     console.error(
-      '[uploadPhoto] Firebase Storage upload failed.\n' +
-      `  Error code : ${errorCode}\n` +
-      `  Storage path : ${storagePath}\n` +
+      '[uploadPhoto] Server upload failed.\n' +
       `  File size : ${compressedImage.size} bytes\n` +
-      `  Server response: ${errorServerResponse || '(none)'}`,
+      `  Project ID: ${projectId}`,
       uploadError,
     );
-    const userMessage = getStorageErrorMessage(uploadError);
-    throw new Error(userMessage);
+
+    // If fetch itself failed (network error), give a helpful message
+    if (uploadError instanceof TypeError && uploadError.message.includes('fetch')) {
+      throw new Error('Network error: Unable to reach the upload server. Please check your internet connection and try again.');
+    }
+
+    // Re-throw with the error message
+    const msg = uploadError instanceof Error ? uploadError.message : 'Upload failed. Please try again.';
+    throw new Error(msg);
   }
 
   // ---- Step 3: Create Firestore document ----
@@ -214,7 +204,6 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
       }
     }
   } catch (firestoreError) {
-    // Only rethrow if this is not a tag error (photo doc creation failed)
     if (!(firestoreError instanceof Error && firestoreError.message.includes('tags'))) {
       const fsCode = firestoreError && typeof firestoreError === 'object' && 'code' in firestoreError
         ? (firestoreError as { code: string }).code
@@ -229,7 +218,6 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
       );
       throw new Error(getFirestoreErrorMessage(firestoreError));
     }
-    // This shouldn't be reached, but as a safety net:
     throw firestoreError;
   }
 
@@ -246,7 +234,6 @@ export async function uploadPhoto(params: UploadPhotoParams): Promise<UploadResu
       thumbnailUrl,
     });
   } catch (activityError) {
-    // Activity logging failure should never block the user
     console.warn('[uploadPhoto] Activity logging failed (photo was saved successfully):', activityError);
   }
 

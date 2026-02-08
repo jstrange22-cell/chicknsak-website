@@ -1,5 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  collection, query as fbQuery, where, getDocs, addDoc, serverTimestamp, onSnapshot,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
   ArrowLeft,
   Clock,
@@ -16,7 +21,6 @@ import {
   Star,
   MoreHorizontal,
   Tag,
-  MessageCircle,
   Pencil,
   Upload,
   Camera,
@@ -162,6 +166,110 @@ export default function ProjectDetail() {
   // Collaborators data & mutations
   const { data: collaborators, isLoading: collaboratorsLoading } = useProjectCollaborators(id);
   const removeCollaborator = useRemoveCollaborator();
+
+  // --- Project Conversation ---
+  const queryClient = useQueryClient();
+  const [conversationMessages, setConversationMessages] = useState<Array<{id: string; body: string; userId: string; createdAt: any}>>([]);
+  const [conversationBody, setConversationBody] = useState('');
+  const [isSendingComment, setIsSendingComment] = useState(false);
+
+  // Find or get the project channel
+  const { data: projectChannel } = useQuery({
+    queryKey: ['projectChannel', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const q = fbQuery(
+        collection(db, 'channels'),
+        where('projectId', '==', id),
+        where('channelType', '==', 'project'),
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) return null;
+      return { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+    },
+    enabled: !!id,
+  });
+
+  // Listen to project channel messages in real-time
+  useEffect(() => {
+    if (!projectChannel?.id) {
+      setConversationMessages([]);
+      return;
+    }
+    const msgQ = fbQuery(
+      collection(db, 'messages'),
+      where('channelId', '==', projectChannel.id),
+    );
+    const unsub = onSnapshot(msgQ, (snap) => {
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      msgs.sort((a: any, b: any) => {
+        const aT = a.createdAt?.toMillis?.() ?? 0;
+        const bT = b.createdAt?.toMillis?.() ?? 0;
+        return aT - bT;
+      });
+      setConversationMessages(msgs);
+    });
+    return () => unsub();
+  }, [projectChannel?.id]);
+
+  // Send a project conversation message
+  const handleSendConversation = async () => {
+    if (!conversationBody.trim() || !id || !user?.uid || !profile?.companyId) return;
+    setIsSendingComment(true);
+    try {
+      let channelId = projectChannel?.id;
+
+      // Create channel if it doesn't exist
+      if (!channelId) {
+        const channelData = {
+          companyId: profile.companyId,
+          name: project?.name ?? 'Project Chat',
+          description: '',
+          channelType: 'project',
+          projectId: id,
+          isArchived: false,
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        const channelRef = await addDoc(collection(db, 'channels'), channelData);
+        channelId = channelRef.id;
+
+        // Add creator as channel member
+        await addDoc(collection(db, 'channelMembers'), {
+          channelId,
+          userId: user.uid,
+          role: 'owner',
+          lastReadAt: serverTimestamp(),
+          joinedAt: serverTimestamp(),
+        });
+
+        // Invalidate to refetch
+        queryClient.invalidateQueries({ queryKey: ['projectChannel', id] });
+        queryClient.invalidateQueries({ queryKey: ['channels'] });
+      }
+
+      // Send message
+      await addDoc(collection(db, 'messages'), {
+        channelId,
+        userId: user.uid,
+        body: conversationBody.trim(),
+        attachments: [],
+        mentions: [],
+        parentMessageId: null,
+        isEdited: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setConversationBody('');
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+    } catch (err) {
+      console.error('Failed to send project message:', err);
+    } finally {
+      setIsSendingComment(false);
+    }
+  };
 
   const filteredTasks = (tasks ?? []).filter((t) => {
     if (taskFilter === 'all') return true;
@@ -1105,20 +1213,55 @@ export default function ProjectDetail() {
               {/* Project Conversation */}
               <div className="p-4">
                 <h3 className="text-sm font-semibold text-slate-900 mb-2">Project Conversation</h3>
+
+                {/* Messages */}
+                {conversationMessages.length > 0 && (
+                  <div className="space-y-2 mb-3 max-h-64 overflow-y-auto">
+                    {conversationMessages.map((msg) => {
+                      const isMe = msg.userId === user?.uid;
+                      const timeStr = msg.createdAt?.toDate
+                        ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : '';
+                      return (
+                        <div key={msg.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
+                          <div className={cn(
+                            'max-w-[80%] rounded-xl px-3 py-1.5 text-sm',
+                            isMe ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-800'
+                          )}>
+                            <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+                            <p className={cn('text-[10px] mt-0.5', isMe ? 'text-blue-200' : 'text-slate-400')}>{timeStr}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Input */}
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="border border-slate-200 rounded-lg">
                       <textarea
+                        value={conversationBody}
+                        onChange={(e) => setConversationBody(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            void handleSendConversation();
+                          }
+                        }}
                         placeholder="Add a comment..."
                         className="w-full px-3 py-2 text-sm text-slate-700 placeholder-slate-400 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
                         rows={2}
                       />
-                      <div className="flex items-center justify-between px-3 py-1.5 border-t border-slate-100">
-                        <button className="text-slate-400 hover:text-slate-600">
-                          <MessageCircle className="h-4 w-4" />
-                        </button>
-                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 h-7">
-                          Post
+                      <div className="flex items-center justify-end px-3 py-1.5 border-t border-slate-100">
+                        <Button
+                          size="sm"
+                          onClick={() => void handleSendConversation()}
+                          disabled={!conversationBody.trim() || isSendingComment}
+                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 h-7"
+                        >
+                          {isSendingComment ? 'Sending...' : 'Post'}
                         </Button>
                       </div>
                     </div>

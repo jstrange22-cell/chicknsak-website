@@ -135,14 +135,20 @@ export function useChannels() {
         }),
       );
 
+      // Filter out project channels that have no messages yet
+      const filteredChannels = channels.filter((c) => {
+        if (c.channelType === 'project' && !c.lastMessage) return false;
+        return true;
+      });
+
       // 4. Sort by last message time (most recent first)
-      channels.sort((a, b) => {
+      filteredChannels.sort((a, b) => {
         const aTime = a.lastMessage?.createdAt?.toMillis?.() ?? a.createdAt?.toMillis?.() ?? 0;
         const bTime = b.lastMessage?.createdAt?.toMillis?.() ?? b.createdAt?.toMillis?.() ?? 0;
         return bTime - aTime;
       });
 
-      return channels;
+      return filteredChannels;
     },
     enabled: !!userId && !!companyId,
   });

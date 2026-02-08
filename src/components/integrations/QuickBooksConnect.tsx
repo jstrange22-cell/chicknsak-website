@@ -168,7 +168,7 @@ export default function QuickBooksConnect() {
       <div className="space-y-3">
         <p className="text-xs text-slate-500">
           Connect QuickBooks Online to sync invoices, payments, and customers between
-          JobMate and QBO.
+          ProjectWorks and QBO.
         </p>
         <div className="flex gap-2">
           <Button variant="default" size="sm" onClick={() => setShowForm(true)}>

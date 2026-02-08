@@ -1,10 +1,10 @@
 // Google Drive Sync Service
 //
 // Handles syncing project photos and documents to Google Drive.
-// Uses a Firebase Cloud Function as a proxy for Drive API calls.
+// Uses a PHP proxy on the Hostinger server since Firebase Cloud Functions
+// require the Blaze (paid) plan.
 
-import { functions } from '@/lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+const PROXY_URL = `${window.location.origin}/api/googledrive-proxy.php`;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,17 +37,21 @@ export interface DriveFolder {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function callDriveFunction(
+async function callDriveProxy(
   action: string,
   credentials: DriveConfig,
   data?: Record<string, unknown>,
-) {
-  const googleDriveApi = httpsCallable<Record<string, unknown>, Record<string, unknown>>(functions, 'googleDriveApi');
-  const response = await googleDriveApi({ action, credentials, data });
-  const result = response.data;
+): Promise<Record<string, unknown>> {
+  const response = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, credentials, data }),
+  });
 
-  if (result && !result.success) {
-    throw new Error((result.error as string) || 'Drive request failed');
+  const result = await response.json();
+
+  if (!result.success) {
+    throw new Error(result.error || 'Drive request failed');
   }
 
   return result;
@@ -64,7 +68,7 @@ export async function testDriveConnection(config: DriveConfig): Promise<{
   error?: string;
 }> {
   try {
-    const result = await callDriveFunction('test-connection', config);
+    const result = await callDriveProxy('test-connection', config);
     return { success: true, files: result.files as DriveFile[] | undefined };
   } catch (err) {
     return {
@@ -80,7 +84,7 @@ export async function createDriveFolder(
   name: string,
   parentId?: string,
 ): Promise<DriveFolder> {
-  const result = await callDriveFunction('create-folder', config, { name, parentId });
+  const result = await callDriveProxy('create-folder', config, { name, parentId });
   return result.folder as DriveFolder;
 }
 
@@ -89,7 +93,7 @@ export async function getOrCreateProjectFolder(
   config: DriveConfig,
   projectName: string,
 ): Promise<{ folder: DriveFolder; created: boolean }> {
-  const result = await callDriveFunction('get-or-create-project-folder', config, {
+  const result = await callDriveProxy('get-or-create-project-folder', config, {
     projectName,
   });
   return {
@@ -98,7 +102,7 @@ export async function getOrCreateProjectFolder(
   };
 }
 
-/** Upload a photo to Drive from a Firebase Storage URL */
+/** Upload a photo to Drive from a URL */
 export async function uploadPhotoToDrive(
   config: DriveConfig,
   photoUrl: string,
@@ -106,7 +110,7 @@ export async function uploadPhotoToDrive(
   folderId?: string,
   description?: string,
 ): Promise<DriveFile> {
-  const result = await callDriveFunction('upload-photo', config, {
+  const result = await callDriveProxy('upload-photo', config, {
     photoUrl,
     fileName,
     folderId,
@@ -120,7 +124,7 @@ export async function listDriveFiles(
   config: DriveConfig,
   folderId?: string,
 ): Promise<DriveFile[]> {
-  const result = await callDriveFunction('list-files', config, { folderId });
+  const result = await callDriveProxy('list-files', config, { folderId });
   return ((result.data as Record<string, unknown>)?.files as DriveFile[]) ?? [];
 }
 
@@ -131,7 +135,6 @@ export async function backupProjectPhotos(
   photos: Array<{ url: string; fileName: string; description?: string }>,
   onProgress?: (completed: number, total: number) => void,
 ): Promise<{ uploaded: number; errors: string[] }> {
-  // Get or create the project folder
   const { folder } = await getOrCreateProjectFolder(config, projectName);
 
   let uploaded = 0;

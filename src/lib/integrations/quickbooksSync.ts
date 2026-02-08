@@ -1,11 +1,10 @@
 // QuickBooks Online Sync Service
 //
-// Handles syncing data between JobMate and QuickBooks Online.
-// Uses a Firebase Cloud Function as a proxy to avoid exposing QBO
-// credentials in the browser.
+// Handles syncing data between ProjectWorks and QuickBooks Online.
+// Uses a PHP proxy on the Hostinger server since Firebase Cloud Functions
+// require the Blaze (paid) plan.
 
-import { functions } from '@/lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+const PROXY_URL = `${window.location.origin}/api/quickbooks-proxy.php`;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,17 +36,21 @@ export interface QBOInvoiceData {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function callQBOFunction(
+async function callQBOProxy(
   action: string,
   credentials: QBOConfig,
   data?: Record<string, unknown>,
-) {
-  const quickbooksApi = httpsCallable<Record<string, unknown>, Record<string, unknown>>(functions, 'quickbooksApi');
-  const response = await quickbooksApi({ action, credentials, data });
-  const result = response.data;
+): Promise<Record<string, unknown>> {
+  const response = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, credentials, data }),
+  });
 
-  if (result && !result.success) {
-    throw new Error((result.error as string) || 'QBO request failed');
+  const result = await response.json();
+
+  if (!result.success) {
+    throw new Error(result.error || 'QBO request failed');
   }
 
   return result;
@@ -64,7 +67,7 @@ export async function testQBOConnection(config: QBOConfig): Promise<{
   error?: string;
 }> {
   try {
-    const result = await callQBOFunction('test-connection', config);
+    const result = await callQBOProxy('test-connection', config);
     return { success: true, company: result.company as Record<string, unknown> | undefined };
   } catch (err) {
     return {
@@ -76,7 +79,7 @@ export async function testQBOConnection(config: QBOConfig): Promise<{
 
 /** Fetch customers from QBO */
 export async function getQBOCustomers(config: QBOConfig) {
-  return callQBOFunction('get-customers', config);
+  return callQBOProxy('get-customers', config);
 }
 
 /** Create an invoice in QBO from an estimate */
@@ -84,20 +87,20 @@ export async function createQBOInvoice(
   config: QBOConfig,
   invoiceData: QBOInvoiceData,
 ) {
-  return callQBOFunction('create-invoice', config, invoiceData as unknown as Record<string, unknown>);
+  return callQBOProxy('create-invoice', config, invoiceData as unknown as Record<string, unknown>);
 }
 
 /** Fetch invoices from QBO */
 export async function getQBOInvoices(config: QBOConfig) {
-  return callQBOFunction('get-invoices', config);
+  return callQBOProxy('get-invoices', config);
 }
 
 /** Fetch payments from QBO */
 export async function getQBOPayments(config: QBOConfig) {
-  return callQBOFunction('get-payments', config);
+  return callQBOProxy('get-payments', config);
 }
 
 /** Check payment status for a specific invoice */
 export async function syncQBOPayment(config: QBOConfig, invoiceId: string) {
-  return callQBOFunction('sync-payment', config, { invoiceId });
+  return callQBOProxy('sync-payment', config, { invoiceId });
 }

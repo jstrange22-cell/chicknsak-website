@@ -166,6 +166,7 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -228,6 +229,17 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId]);
+
+  // Auto-request push notifications on first visit
+  useEffect(() => {
+    if (pushSupported && permissionStatus === 'default') {
+      // Small delay so it doesn't block initial render
+      const timer = setTimeout(() => {
+        void requestPermission();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [pushSupported, permissionStatus, requestPermission]);
 
   // Mark read when new messages come in while viewing + update readBy
   useEffect(() => {
@@ -1106,6 +1118,15 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
           className="hidden"
           onChange={(e) => void handleFileSelect(e)}
         />
+        {/* Hidden gallery input - images only */}
+        <input
+          ref={galleryInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={(e) => void handleFileSelect(e)}
+        />
 
         {/* Recording mode */}
         {isRecording ? (
@@ -1149,6 +1170,16 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
               <Paperclip className="h-5 w-5" />
             </button>
 
+            {/* Gallery button */}
+            <button
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={uploadProgress !== null}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors disabled:opacity-50"
+              title="Photo gallery"
+            >
+              <ImageIcon className="h-5 w-5" />
+            </button>
+
             {/* GIF button */}
             <button
               onClick={() => {
@@ -1163,7 +1194,7 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
               )}
               title="Send GIF"
             >
-              <ImageIcon className="h-5 w-5" />
+              <span className="text-xs font-bold">GIF</span>
             </button>
 
             {/* Message input */}
