@@ -48,6 +48,7 @@ const AdminProjects = lazy(() => import('@/pages/admin/AdminProjects'));
 const AdminInvoicing = lazy(() => import('@/pages/admin/AdminInvoicing'));
 const AdminReports = lazy(() => import('@/pages/admin/AdminReports'));
 const AdminScheduling = lazy(() => import('@/pages/admin/AdminScheduling'));
+const AdminVendors = lazy(() => import('@/pages/admin/AdminVendors'));
 
 // Auth Pages
 const Login = lazy(() => import('@/pages/auth/Login'));
@@ -139,6 +140,7 @@ function App() {
                   <Route path="invoicing" element={<AdminInvoicing />} />
                   <Route path="reports" element={<AdminReports />} />
                   <Route path="scheduling" element={<AdminScheduling />} />
+                  <Route path="vendors" element={<AdminVendors />} />
                 </Route>
               </Route>
             </Routes>

@@ -32,6 +32,14 @@ export interface JobTreadLocation {
   longitude?: number;
 }
 
+export interface JobTreadContact {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+}
+
 export interface JobTreadJob {
   id: string;
   name: string;
@@ -40,7 +48,27 @@ export interface JobTreadJob {
   description?: string;
   closedOn?: string;
   location?: JobTreadLocation;
+  contact?: JobTreadContact;
   createdAt: string;
+}
+
+export interface JobTreadProposalLineItem {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface JobTreadProposalGroup {
+  id: string;
+  name: string;
+  lineItems: { nodes: JobTreadProposalLineItem[] };
+}
+
+export interface JobTreadProposal {
+  id: string;
+  name: string;
+  status: string;
+  groups: { nodes: JobTreadProposalGroup[] };
 }
 
 export interface JobTreadFile {
@@ -91,6 +119,7 @@ function f(...names: string[]): Record<string, Record<string, never>> {
 const JOB_FIELDS = {
   ...f('id', 'name', 'number', 'status', 'description', 'closedOn', 'createdAt'),
   location: f('id', 'address', 'latitude', 'longitude'),
+  contact: f('id', 'name', 'email', 'phone', 'company'),
 };
 
 // ---------------------------------------------------------------------------
@@ -486,5 +515,42 @@ export class JobTreadClient {
     });
 
     return data.createJob.createdJob;
+  }
+
+  // -----------------------------------------------------------------------
+  // Proposals
+  // -----------------------------------------------------------------------
+
+  /**
+   * Fetch proposals for a specific job.
+   * Returns proposals with their groups and line items.
+   */
+  async getJobProposals(jobId: string): Promise<JobTreadProposal[]> {
+    const data = await this.query<{
+      job: {
+        proposals: {
+          nodes: JobTreadProposal[];
+        };
+      };
+    }>({
+      job: {
+        $: { id: jobId },
+        proposals: {
+          nodes: {
+            ...f('id', 'name', 'status'),
+            groups: {
+              nodes: {
+                ...f('id', 'name'),
+                lineItems: {
+                  nodes: f('id', 'name', 'description'),
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return data.job?.proposals?.nodes ?? [];
   }
 }

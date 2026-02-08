@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Shield,
   CalendarDays,
+  HardHat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/components/auth/AuthProvider';
@@ -26,6 +27,7 @@ const adminTabs: AdminTab[] = [
   { icon: Clock, label: 'Timeclock', path: '/admin/timeclock' },
   { icon: Users, label: 'Users', path: '/admin/users' },
   { icon: FolderKanban, label: 'Projects', path: '/admin/projects' },
+  { icon: HardHat, label: 'Vendors', path: '/admin/vendors' },
   { icon: FileText, label: 'Invoicing', path: '/admin/invoicing' },
   { icon: BarChart3, label: 'Reports', path: '/admin/reports' },
   { icon: CalendarDays, label: 'Scheduling', path: '/admin/scheduling' },

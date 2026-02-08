@@ -14,8 +14,9 @@ import {
   Activity,
   Key,
   AlertCircle,
+  ListChecks,
 } from 'lucide-react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -29,7 +30,7 @@ import {
 } from '@/hooks/useIntegrations';
 import { useAuthContext } from '@/components/auth/AuthProvider';
 import { JobTreadClient } from '@/lib/integrations/jobtread';
-import { syncJobsToProjects } from '@/lib/integrations/jobtreadSync';
+import { syncJobsToProjects, syncProposalsToChecklists } from '@/lib/integrations/jobtreadSync';
 import { formatRelativeTime } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -76,7 +77,7 @@ const SYNC_STEPS = [
 // ---------------------------------------------------------------------------
 
 export default function JobTreadConnect() {
-  const { profile } = useAuthContext();
+  const { profile, user } = useAuthContext();
   const integration = useIntegration('jobtread');
   const connectMutation = useConnectIntegration();
   const disconnectMutation = useDisconnectIntegration();
@@ -97,6 +98,15 @@ export default function JobTreadConnect() {
     errors: Array<{ jobId: string; message: string }>;
   } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Proposal sync state
+  const [isProposalSyncing, setIsProposalSyncing] = useState(false);
+  const [proposalResult, setProposalResult] = useState<{
+    synced: number;
+    skipped: number;
+    errors: Array<{ proposalId: string; message: string }>;
+  } | null>(null);
+  const [proposalError, setProposalError] = useState<string | null>(null);
 
   // Configuration state
   const [defaultFolder, setDefaultFolder] = useState<string>('');
@@ -243,6 +253,69 @@ export default function JobTreadConnect() {
       setIsSyncing(false);
     }
   }, [integration, profile?.companyId, updateSyncTimestamp]);
+
+  const handleSyncProposals = useCallback(async () => {
+    if (!integration?.accessToken || !profile?.companyId || !user?.uid) {
+      setProposalError('Missing authentication. Please reconnect.');
+      return;
+    }
+
+    setIsProposalSyncing(true);
+    setProposalResult(null);
+    setProposalError(null);
+
+    try {
+      const client = new JobTreadClient(integration.accessToken);
+
+      // Find all projects linked to JobTread
+      const projectsRef = collection(db, 'projects');
+      const linkedQuery = query(
+        projectsRef,
+        where('companyId', '==', profile.companyId)
+      );
+      const projectSnap = await getDocs(linkedQuery);
+
+      let totalSyncedCount = 0;
+      let totalSkippedCount = 0;
+      const allErrors: Array<{ proposalId: string; message: string }> = [];
+
+      for (const projectDoc of projectSnap.docs) {
+        const projectData = projectDoc.data();
+        const jobtreadJobId = projectData.metadata?.jobtreadJobId;
+        if (!jobtreadJobId) continue;
+
+        try {
+          const result = await syncProposalsToChecklists(
+            client,
+            projectDoc.id,
+            jobtreadJobId as string,
+            profile.companyId,
+            user.uid
+          );
+          totalSyncedCount += result.synced;
+          totalSkippedCount += result.skipped;
+          allErrors.push(...result.errors);
+        } catch (err) {
+          allErrors.push({
+            proposalId: jobtreadJobId as string,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      setProposalResult({
+        synced: totalSyncedCount,
+        skipped: totalSkippedCount,
+        errors: allErrors,
+      });
+    } catch (err) {
+      setProposalError(
+        err instanceof Error ? err.message : 'Failed to sync proposals'
+      );
+    } finally {
+      setIsProposalSyncing(false);
+    }
+  }, [integration, profile?.companyId, user?.uid]);
 
   const handleSaveConfig = useCallback(async () => {
     if (!integration?.id) return;
@@ -532,6 +605,34 @@ export default function JobTreadConnect() {
               </div>
             )}
 
+            {/* ---- Proposal sync result feedback ---- */}
+            {proposalResult && (
+              <div className={`rounded-lg border p-3 text-sm ${proposalResult.errors.length > 0 ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
+                <p className="font-medium">Proposal sync complete</p>
+                <p>
+                  {proposalResult.synced} checklist{proposalResult.synced !== 1 ? 's' : ''} created
+                  {proposalResult.skipped > 0 && (
+                    <span className="text-slate-500">
+                      , {proposalResult.skipped} already synced (skipped)
+                    </span>
+                  )}
+                  {proposalResult.errors.length > 0 && (
+                    <span className="text-red-700">
+                      , {proposalResult.errors.length} error{proposalResult.errors.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {/* ---- Proposal sync error feedback ---- */}
+            {proposalError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                <p className="font-medium">Proposal sync failed</p>
+                <p>{proposalError}</p>
+              </div>
+            )}
+
             {/* ---- How the Integration Works ---- */}
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -564,6 +665,17 @@ export default function JobTreadConnect() {
               >
                 {!isSyncing && <RefreshCw className="h-4 w-4" />}
                 {isSyncing ? 'Syncing...' : 'Sync Now'}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncProposals}
+                disabled={isProposalSyncing}
+                isLoading={isProposalSyncing}
+              >
+                {!isProposalSyncing && <ListChecks className="h-4 w-4" />}
+                {isProposalSyncing ? 'Syncing Proposals...' : 'Sync Proposals'}
               </Button>
 
               <Button

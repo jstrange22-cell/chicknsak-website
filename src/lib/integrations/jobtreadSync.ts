@@ -9,11 +9,13 @@ import {
   doc,
   setDoc,
   updateDoc,
+  addDoc,
+  writeBatch,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { JobTreadClient, JobTreadApiError } from './jobtread';
-import type { ProjectStatus, Photo, Project } from '@/types';
+import type { ProjectStatus, Photo, Project, TemplateSection, TemplateField } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,6 +146,12 @@ export async function syncJobsToProjects(
       if (job.location?.longitude != null) baseData.longitude = job.location.longitude;
       if (job.description) baseData.description = job.description;
 
+      // Map contact/customer data
+      if (job.contact?.name) baseData.customerName = job.contact.name;
+      if (job.contact?.email) baseData.customerEmail = job.contact.email;
+      if (job.contact?.phone) baseData.customerPhone = job.contact.phone;
+      if (job.contact?.company) baseData.customerCompany = job.contact.company;
+
       if (existing.empty) {
         // Create a new project — set status from JobTread mapping
         const newRef = doc(collection(db, 'projects'));
@@ -174,6 +182,123 @@ export async function syncJobsToProjects(
   }
 
   return { created, updated, skipped, errors };
+}
+
+// ---------------------------------------------------------------------------
+// Sync: Pull approved proposals from JobTread → checklists
+// ---------------------------------------------------------------------------
+
+export interface ProposalSyncResult {
+  synced: number;
+  skipped: number;
+  errors: Array<{ proposalId: string; message: string }>;
+}
+
+/**
+ * Fetches approved proposals from a JobTread job and creates checklists
+ * from them in Firestore. Each proposal group becomes a checklist section,
+ * and each line item becomes a checkbox field.
+ *
+ * Already-synced proposals (matched by metadata.jobtreadProposalId) are skipped.
+ */
+export async function syncProposalsToChecklists(
+  client: JobTreadClient,
+  projectId: string,
+  jobtreadJobId: string,
+  companyId: string,
+  userId: string
+): Promise<ProposalSyncResult> {
+  if (!projectId || !jobtreadJobId || !companyId || !userId) {
+    throw new Error('All parameters are required for proposal sync');
+  }
+
+  const proposals = await client.getJobProposals(jobtreadJobId);
+
+  // Filter for approved proposals only
+  const approved = proposals.filter(
+    (p) => p.status?.toLowerCase() === 'approved'
+  );
+
+  let synced = 0;
+  let skipped = 0;
+  const errors: ProposalSyncResult['errors'] = [];
+
+  for (const proposal of approved) {
+    try {
+      // Check if this proposal was already synced
+      const checklistsRef = collection(db, 'checklists');
+      const existingQuery = query(
+        checklistsRef,
+        where('companyId', '==', companyId),
+        where('projectId', '==', projectId),
+        where('metadata.jobtreadProposalId', '==', proposal.id)
+      );
+      const existingSnap = await getDocs(existingQuery);
+
+      if (!existingSnap.empty) {
+        skipped++;
+        continue;
+      }
+
+      // Build sections from proposal groups
+      const sections: TemplateSection[] = (proposal.groups?.nodes ?? []).map((group) => ({
+        name: group.name || 'Untitled Group',
+        fields: (group.lineItems?.nodes ?? []).map((item): TemplateField => ({
+          id: crypto.randomUUID(),
+          label: item.name || 'Untitled Item',
+          type: 'checkbox',
+          required: false,
+        })),
+      }));
+
+      // Create the checklist document
+      const checklistDoc = await addDoc(collection(db, 'checklists'), {
+        projectId,
+        companyId,
+        name: proposal.name || 'Imported Proposal',
+        status: 'in_progress',
+        sections,
+        createdBy: userId,
+        metadata: {
+          jobtreadProposalId: proposal.id,
+          importedFrom: 'jobtread',
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Create individual checklist items via batch write
+      const batch = writeBatch(db);
+      let sortOrder = 0;
+
+      for (const section of sections) {
+        for (const field of section.fields) {
+          const itemRef = doc(collection(db, 'checklistItems'));
+          batch.set(itemRef, {
+            checklistId: checklistDoc.id,
+            sectionName: section.name,
+            label: field.label,
+            fieldType: 'checkbox',
+            sortOrder: sortOrder++,
+            completed: false,
+            photoIds: [],
+            required: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      await batch.commit();
+      synced++;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : String(err);
+      errors.push({ proposalId: proposal.id, message });
+    }
+  }
+
+  return { synced, skipped, errors };
 }
 
 // ---------------------------------------------------------------------------

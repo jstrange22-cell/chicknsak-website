@@ -873,6 +873,24 @@ export interface ChangeOrder extends BaseDocument {
   createdBy: string;
 }
 
+// ============================================================
+// VENDORS (company-wide)
+// ============================================================
+
+export type VendorStatus = 'active' | 'inactive';
+
+export interface Vendor extends BaseDocument {
+  companyId: string;
+  name: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  specialty?: string;
+  notes?: string;
+  status: VendorStatus;
+  createdBy: string;
+}
+
 // Helper types for creating/updating documents
 export type CreateData<T> = Omit<T, 'id' | 'createdAt' | 'updatedAt'>;
 export type UpdateData<T> = Partial<Omit<T, 'id' | 'createdAt'>>;
