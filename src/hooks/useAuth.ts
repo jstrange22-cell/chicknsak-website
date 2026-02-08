@@ -207,6 +207,52 @@ export function useAuth() {
     return fetchProfile(user.uid);
   }, [fetchProfile, claimInvitationOrCreateCompany]);
 
+  // Helper: claim pending invitation for an existing user (moves them to the inviting company)
+  const claimInvitationForExistingUser = useCallback(
+    async (uid: string, email: string): Promise<User | null> => {
+      const normalizedEmail = email.toLowerCase().trim();
+
+      try {
+        const invitationsQuery = query(
+          collection(db, 'invitations'),
+          where('email', '==', normalizedEmail),
+          where('status', '==', 'pending')
+        );
+        const snapshot = await getDocs(invitationsQuery);
+
+        if (!snapshot.empty) {
+          const invDoc = snapshot.docs[0];
+          const invitation = invDoc.data();
+
+          // Move user to the inviting company
+          await updateDoc(doc(db, 'users', uid), {
+            companyId: invitation.companyId,
+            role: invitation.role || 'standard',
+            updatedAt: serverTimestamp(),
+          });
+
+          // Mark invitation as accepted
+          await updateDoc(doc(db, 'invitations', invDoc.id), {
+            status: 'accepted',
+            acceptedByUid: uid,
+            acceptedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+
+          console.log('Existing user claimed invitation for company:', invitation.companyId);
+
+          // Re-fetch the updated profile
+          return fetchProfile(uid);
+        }
+      } catch (error) {
+        console.warn('Invitation check for existing user failed:', error);
+      }
+
+      return null;
+    },
+    [fetchProfile]
+  );
+
   // Handle redirect result (for Google sign-in via redirect)
   useEffect(() => {
     getRedirectResult(auth)
@@ -215,6 +261,12 @@ export function useAuth() {
           let profile = await fetchProfile(result.user.uid);
           if (!profile) {
             profile = await createGoogleProfile(result.user);
+          } else if (result.user.email) {
+            // Existing user — check for pending invitation
+            const updatedProfile = await claimInvitationForExistingUser(result.user.uid, result.user.email);
+            if (updatedProfile) {
+              profile = updatedProfile;
+            }
           }
           setState({
             user: result.user,
@@ -233,7 +285,7 @@ export function useAuth() {
           error: error instanceof Error ? error.message : 'Google sign in failed',
         }));
       });
-  }, [fetchProfile, createGoogleProfile]);
+  }, [fetchProfile, createGoogleProfile, claimInvitationForExistingUser]);
 
   // Listen to auth state changes
   useEffect(() => {
@@ -350,13 +402,21 @@ export function useAuth() {
     [fetchProfile, claimInvitationOrCreateCompany]
   );
 
-
   // Sign in with email/password
   const signIn = useCallback(async (email: string, password: string) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
       const { user } = await signInWithEmailAndPassword(auth, email, password);
-      const profile = await fetchProfile(user.uid);
+      let profile = await fetchProfile(user.uid);
+
+      // If user exists, check for pending invitation to move them to a new company
+      if (profile && user.email) {
+        const updatedProfile = await claimInvitationForExistingUser(user.uid, user.email);
+        if (updatedProfile) {
+          profile = updatedProfile;
+        }
+      }
+
       setState({
         user,
         profile,
@@ -370,7 +430,7 @@ export function useAuth() {
       setState((prev) => ({ ...prev, isLoading: false, error: errorMessage }));
       throw error;
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, claimInvitationForExistingUser]);
 
   // Sign in with Google
   // - Native (Capacitor on Android/iOS): use redirect only (popups crash the WebView)
@@ -406,6 +466,12 @@ export function useAuth() {
       let profile = await fetchProfile(user.uid);
       if (!profile) {
         profile = await createGoogleProfile(user);
+      } else if (user.email) {
+        // Existing user — check for pending invitation
+        const updatedProfile = await claimInvitationForExistingUser(user.uid, user.email);
+        if (updatedProfile) {
+          profile = updatedProfile;
+        }
       }
 
       setState({
@@ -436,7 +502,7 @@ export function useAuth() {
       setState((prev) => ({ ...prev, isLoading: false, error: errorMessage }));
       throw popupError;
     }
-  }, [fetchProfile, createGoogleProfile]);
+  }, [fetchProfile, createGoogleProfile, claimInvitationForExistingUser]);
 
 
   // Sign out
