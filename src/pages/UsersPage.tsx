@@ -13,6 +13,8 @@ import {
   UserCheck,
   UserX,
   ChevronDown,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   collection,
@@ -22,6 +24,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
   addDoc,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -95,6 +98,8 @@ export default function UsersPage() {
   const [inviteError, setInviteError] = useState('');
   const [inviteLink, setInviteLink] = useState('');
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isAdmin = profile?.role === 'admin' || !profile?.role;
 
@@ -231,6 +236,20 @@ export default function UsersPage() {
       setActionMenuUserId(null);
     } catch (err) {
       console.error('Error toggling user active status:', err);
+    }
+  }
+
+  async function handleDeleteUser() {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'users', deleteTarget.id));
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('Error deleting user:', err);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -421,6 +440,18 @@ export default function UsersPage() {
                               </>
                             )}
                           </button>
+                          <div className="my-1 border-t border-slate-100" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteTarget({ id: u.id, name: u.fullName });
+                              setActionMenuUserId(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 flex items-center gap-2 text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete User
+                          </button>
                         </div>
                       </>
                     )}
@@ -429,6 +460,39 @@ export default function UsersPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
+            <div className="p-5 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-1">Delete User</h3>
+              <p className="text-sm text-slate-500">
+                Are you sure you want to remove <span className="font-medium text-slate-700">{deleteTarget.name}</span> from your company? This cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 h-10 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                disabled={isDeleting}
+                className="flex-1 h-10 rounded-lg bg-red-600 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              >
+                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
