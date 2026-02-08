@@ -24,7 +24,7 @@ export default function Signup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('invite');
-  const { signUp, signInWithGoogle, error, clearError } = useAuthContext();
+  const { signUp, signIn, signInWithGoogle, error, clearError } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [invitation, setInvitation] = useState<Invitation | null>(null);
@@ -64,8 +64,20 @@ export default function Signup() {
     try {
       await signUp(data.email, data.password, data.fullName);
       navigate('/');
-    } catch {
-      // Error handled by useAuth
+    } catch (err: unknown) {
+      // If user already exists (came via invite link), sign them in instead
+      const errorCode = (err as { code?: string })?.code;
+      if (errorCode === 'auth/email-already-in-use') {
+        try {
+          clearError();
+          await signIn(data.email, data.password);
+          navigate('/');
+          return;
+        } catch {
+          // signIn failed too — useAuth will set the error
+        }
+      }
+      // Other errors handled by useAuth
     } finally {
       setIsLoading(false);
     }
@@ -107,7 +119,7 @@ export default function Signup() {
               {invitation.companyName}
             </p>
             <p className="text-xs text-blue-600 mt-1">
-              as {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)} · Create your account below to get started.
+              as {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)} · Sign in or create an account below to get started.
             </p>
           </div>
         )}
@@ -217,7 +229,7 @@ export default function Signup() {
         {/* Sign in link */}
         <p className="text-center text-sm text-slate-600 mt-4">
           Already have an account?{' '}
-          <Link to="/auth/login" className="text-blue-600 hover:underline font-medium">
+          <Link to={inviteToken ? `/auth/login?invite=${inviteToken}` : '/auth/login'} className="text-blue-600 hover:underline font-medium">
             Sign in
           </Link>
         </p>

@@ -1,9 +1,12 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuthContext } from '@/components/auth/AuthProvider';
+import type { Invitation } from '@/types';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -14,10 +17,34 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
   const { signIn, signInWithGoogle, error, clearError } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
+
+  // Fetch invitation details if token is present
+  useEffect(() => {
+    if (!inviteToken) return;
+    const fetchInvitation = async () => {
+      try {
+        const q = query(
+          collection(db, 'invitations'),
+          where('inviteToken', '==', inviteToken),
+          where('status', '==', 'pending')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setInvitation({ id: snap.docs[0].id, ...snap.docs[0].data() } as Invitation);
+        }
+      } catch (err) {
+        console.error('Error fetching invitation:', err);
+      }
+    };
+    fetchInvitation();
+  }, [inviteToken]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -60,9 +87,24 @@ export default function Login() {
         />
 
         {/* Brand name */}
-        <h1 className="text-2xl font-bold text-slate-900 text-center mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 text-center mb-6">
           ProjectWorks
         </h1>
+
+        {/* Invitation banner */}
+        {invitation && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 mb-6">
+            <p className="text-sm font-medium text-blue-800">
+              You've been invited to join
+            </p>
+            <p className="text-lg font-bold text-blue-900 mt-0.5">
+              {invitation.companyName}
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Sign in below to join the team.
+            </p>
+          </div>
+        )}
 
         {/* Login form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
