@@ -1,12 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { X, Zap, ZapOff, SwitchCamera, Image, Loader2 } from 'lucide-react';
-import { useCamera } from '@/hooks/useCamera';
+import { Camera as CameraIcon, Loader2 } from 'lucide-react';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { PhotoPreview, type SavePhotoData } from '@/components/camera/PhotoPreview';
 import { uploadPhoto } from '@/lib/storage';
 import { useAuthContext } from '@/components/auth/AuthProvider';
-import { cn } from '@/lib/utils';
 
 interface CapturedPhoto {
   dataUrl: string;
@@ -18,54 +16,51 @@ export default function Camera() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedProjectId = searchParams.get('projectId') || searchParams.get('project') || undefined;
-  
+
   const { profile, user } = useAuthContext();
   const { position } = useGeolocation();
-  const camera = useCamera();
-  
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   const [capturedPhoto, setCapturedPhoto] = useState<CapturedPhoto | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [hasTriggered, setHasTriggered] = useState(false);
 
-  // Start camera on mount (web only)
-  // Use a small delay to ensure the video element is mounted in the DOM
+  // Automatically trigger native camera on mount
   useEffect(() => {
-    if (!camera.isNative) {
-      // Small delay to ensure video ref is attached to the DOM element
+    if (!hasTriggered) {
+      setHasTriggered(true);
+      // Small delay to ensure the input is mounted
       const timer = setTimeout(() => {
-        camera.openCamera();
-      }, 100);
-      return () => {
-        clearTimeout(timer);
-        camera.stopCamera();
-      };
+        cameraInputRef.current?.click();
+      }, 200);
+      return () => clearTimeout(timer);
     }
-    return () => {
-      camera.stopCamera();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasTriggered]);
 
-  const handleCapture = async () => {
-    if (isCapturing) return;
-    setIsCapturing(true);
-    
-    try {
-      const photo = await camera.capturePhoto();
-      if (photo) {
-        setCapturedPhoto(photo);
-      }
-    } finally {
-      setIsCapturing(false);
+  const handleFileCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      // User cancelled — go back
+      navigate(-1);
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCapturedPhoto({
+        dataUrl: reader.result as string,
+        blob: file,
+        timestamp: new Date(),
+      });
+    };
+    reader.readAsDataURL(file);
+    // Reset so same file can be re-captured
+    e.target.value = '';
   };
 
   const handleRetake = () => {
     setCapturedPhoto(null);
-    if (!camera.isNative) {
-      camera.openCamera();
-    }
+    // Re-trigger native camera
+    setTimeout(() => cameraInputRef.current?.click(), 100);
   };
-
 
   const handleSavePhoto = async (data: SavePhotoData) => {
     if (!capturedPhoto || !profile?.companyId || !user?.uid) return;
@@ -97,11 +92,6 @@ export default function Camera() {
     }
   };
 
-  const handleClose = () => {
-    camera.stopCamera();
-    navigate(-1);
-  };
-
   // Show photo preview if captured
   if (capturedPhoto) {
     return (
@@ -117,105 +107,37 @@ export default function Camera() {
     );
   }
 
-  // Camera viewfinder
+  // Waiting for native camera — show minimal loading state
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Video viewfinder */}
-      <div className="flex-1 relative overflow-hidden">
-        {camera.isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-white" />
-          </div>
-        ) : camera.error ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
-            <p className="text-center mb-4">{camera.error}</p>
-            <button
-              onClick={() => camera.openCamera()}
-              className="px-4 py-2 bg-blue-500 rounded-lg"
-            >
-              Try Again
-            </button>
-          </div>
-        ) : (
-          <>
-            <video
-              ref={camera.videoRef}
-              autoPlay
-              playsInline
-              muted
-              webkit-playsinline="true"
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ transform: 'scaleX(1)' }}
-            />
-            <canvas ref={camera.canvasRef} className="hidden" />
-          </>
-        )}
+    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+      {/* Hidden file input that triggers native device camera */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileCapture}
+      />
 
+      <Loader2 className="h-8 w-8 animate-spin text-white mb-4" />
+      <p className="text-white text-sm mb-6">Opening camera...</p>
 
-        {/* Top controls */}
-        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-          <button
-            onClick={handleClose}
-            className="p-2 rounded-full bg-black/50 text-white"
-          >
-            <X className="h-6 w-6" />
-          </button>
-          
-          <div className="flex gap-2">
-            <button
-              onClick={camera.toggleFlash}
-              className="p-2 rounded-full bg-black/50 text-white"
-            >
-              {camera.flashMode === 'off' ? (
-                <ZapOff className="h-6 w-6" />
-              ) : (
-                <Zap className={cn("h-6 w-6", camera.flashMode === 'on' && "text-yellow-400")} />
-              )}
-            </button>
-            <button
-              onClick={camera.switchCamera}
-              className="p-2 rounded-full bg-black/50 text-white"
-            >
-              <SwitchCamera className="h-6 w-6" />
-            </button>
-          </div>
-        </div>
+      {/* Fallback button if auto-trigger doesn't work */}
+      <button
+        onClick={() => cameraInputRef.current?.click()}
+        className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+      >
+        <CameraIcon className="h-5 w-5" />
+        Open Camera
+      </button>
 
-        {/* GPS indicator */}
-        {position && (
-          <div className="absolute bottom-4 left-4 text-white text-xs bg-black/50 px-2 py-1 rounded">
-            📍 {position.latitude.toFixed(4)}, {position.longitude.toFixed(4)}
-          </div>
-        )}
-
-        {/* Timestamp */}
-        <div className="absolute bottom-4 right-4 text-white text-xs bg-black/50 px-2 py-1 rounded">
-          {new Date().toLocaleTimeString()}
-        </div>
-      </div>
-
-      {/* Bottom controls */}
-      <div className="flex-shrink-0 h-32 bg-black flex items-center justify-between px-8">
-        {/* Gallery button */}
-        <button className="p-3 rounded-full bg-white/10 text-white">
-          <Image className="h-6 w-6" />
-        </button>
-
-        {/* Capture button */}
-        <button
-          onClick={handleCapture}
-          disabled={isCapturing || camera.isLoading || !!camera.error}
-          className={cn(
-            "w-18 h-18 rounded-full border-4 border-white flex items-center justify-center",
-            isCapturing && "opacity-50"
-          )}
-        >
-          <div className="w-14 h-14 rounded-full bg-white" />
-        </button>
-
-        {/* Placeholder for last photo thumbnail */}
-        <div className="w-12 h-12 rounded-lg bg-white/10" />
-      </div>
+      <button
+        onClick={() => navigate(-1)}
+        className="mt-4 text-white/60 hover:text-white text-sm transition-colors"
+      >
+        Cancel
+      </button>
     </div>
   );
 }

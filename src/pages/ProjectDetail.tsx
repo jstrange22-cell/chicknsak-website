@@ -19,18 +19,19 @@ import {
   Tag,
   MessageCircle,
   Pencil,
-  Users,
   Upload,
   Camera,
   Image as ImageIcon,
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProjects';
 import { usePhotos } from '@/hooks/usePhotos';
+import { useGeolocation } from '@/hooks/useGeolocation';
 import { useAuthContext } from '@/components/auth/AuthProvider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { PhotoGrid } from '@/components/photos/PhotoGrid';
+import { PhotoPreview, type SavePhotoData } from '@/components/camera/PhotoPreview';
 import { uploadPhoto } from '@/lib/storage';
 
 // Checklists
@@ -104,8 +105,11 @@ export default function ProjectDetail() {
 
   // Photo state
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+  const [capturedPhoto, setCapturedPhoto] = useState<{ dataUrl: string; blob: Blob; timestamp: Date } | null>(null);
+  const { position } = useGeolocation();
 
   // Checklist state
   const [showNewChecklist, setShowNewChecklist] = useState(false);
@@ -453,84 +457,143 @@ export default function ProjectDetail() {
               {/* PHOTOS TAB */}
               {activeTab === 'photos' && (
                 <div>
-                  {/* Action buttons */}
-                  <div className="flex flex-wrap items-center gap-2 mb-4">
-                    <Button
-                      onClick={() => navigate(`/camera?projectId=${id}`)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      <Camera className="h-4 w-4" />
-                      Take Photo
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                    >
-                      <Upload className="h-4 w-4" />
-                      {isUploading ? uploadProgress : 'Upload from Gallery'}
-                    </Button>
-                    {/* Hidden file input for gallery upload */}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={async (e) => {
-                        const files = e.target.files;
-                        if (!files?.length || !id || !user?.uid || !profile?.companyId) return;
-                        setIsUploading(true);
-                        try {
-                          for (let i = 0; i < files.length; i++) {
-                            setUploadProgress(`Uploading ${i + 1}/${files.length}...`);
-                            await uploadPhoto({
-                              file: files[i],
-                              projectId: id,
-                              userId: user.uid,
-                              companyId: profile.companyId,
-                            });
-                          }
-                          setUploadProgress('');
-                          // Reset input so same file can be re-selected
-                          e.target.value = '';
-                        } catch (err) {
-                          console.error('Upload failed:', err);
-                        } finally {
-                          setIsUploading(false);
-                        }
+                  {/* If a photo was just captured, show the preview/metadata form inline */}
+                  {capturedPhoto ? (
+                    <PhotoPreview
+                      photoDataUrl={capturedPhoto.dataUrl}
+                      timestamp={capturedPhoto.timestamp}
+                      latitude={position?.latitude}
+                      longitude={position?.longitude}
+                      inline
+                      autoShowForm
+                      onRetake={() => {
+                        setCapturedPhoto(null);
+                        // Re-trigger camera after a brief delay
+                        setTimeout(() => cameraInputRef.current?.click(), 100);
                       }}
+                      onSave={async (data: SavePhotoData) => {
+                        if (!capturedPhoto || !profile?.companyId || !user?.uid) return;
+                        await uploadPhoto({
+                          file: capturedPhoto.blob,
+                          projectId: data.projectId,
+                          userId: user.uid,
+                          companyId: profile.companyId,
+                          description: data.description,
+                          latitude: position?.latitude,
+                          longitude: position?.longitude,
+                          capturedAt: capturedPhoto.timestamp,
+                          isBefore: data.isBefore,
+                          isAfter: data.isAfter,
+                          isInternal: data.isInternal,
+                        });
+                        setCapturedPhoto(null);
+                      }}
+                      preselectedProjectId={id}
                     />
-                  </div>
-
-                  {/* Photo grid or empty state */}
-                  {photosLoading ? (
-                    <PhotoGrid photos={[]} isLoading />
-                  ) : photos && photos.length > 0 ? (
-                    <PhotoGrid photos={photos} />
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-16">
-                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                        <Camera className="h-7 w-7 text-slate-400" />
-                      </div>
-                      <h3 className="text-base font-semibold text-slate-900 mb-1">No photos yet</h3>
-                      <p className="text-sm text-slate-500 mb-5 text-center max-w-[280px]">
-                        Take a photo with your camera or upload from your gallery to get started.
-                      </p>
-                      <div className="flex items-center gap-2">
+                    <>
+                      {/* Action buttons */}
+                      <div className="flex flex-wrap items-center gap-2 mb-4">
                         <Button
-                          onClick={() => navigate(`/camera?projectId=${id}`)}
+                          onClick={() => cameraInputRef.current?.click()}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Camera className="h-4 w-4" />
                           Take Photo
                         </Button>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                          <ImageIcon className="h-4 w-4" />
-                          Upload
+                        <Button
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
+                        >
+                          <Upload className="h-4 w-4" />
+                          {isUploading ? uploadProgress : 'Upload from Gallery'}
                         </Button>
+                        {/* Hidden file input that triggers NATIVE CAMERA */}
+                        <input
+                          ref={cameraInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setCapturedPhoto({
+                                dataUrl: reader.result as string,
+                                blob: file,
+                                timestamp: new Date(),
+                              });
+                            };
+                            reader.readAsDataURL(file);
+                            // Reset so same file can be re-captured
+                            e.target.value = '';
+                          }}
+                        />
+                        {/* Hidden file input for gallery upload (no capture attr) */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (!files?.length || !id || !user?.uid || !profile?.companyId) return;
+                            setIsUploading(true);
+                            try {
+                              for (let i = 0; i < files.length; i++) {
+                                setUploadProgress(`Uploading ${i + 1}/${files.length}...`);
+                                await uploadPhoto({
+                                  file: files[i],
+                                  projectId: id,
+                                  userId: user.uid,
+                                  companyId: profile.companyId,
+                                });
+                              }
+                              setUploadProgress('');
+                              e.target.value = '';
+                            } catch (err) {
+                              console.error('Upload failed:', err);
+                            } finally {
+                              setIsUploading(false);
+                            }
+                          }}
+                        />
                       </div>
-                    </div>
+
+                      {/* Photo grid or empty state */}
+                      {photosLoading ? (
+                        <PhotoGrid photos={[]} isLoading />
+                      ) : photos && photos.length > 0 ? (
+                        <PhotoGrid photos={photos} />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-16">
+                          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                            <Camera className="h-7 w-7 text-slate-400" />
+                          </div>
+                          <h3 className="text-base font-semibold text-slate-900 mb-1">No photos yet</h3>
+                          <p className="text-sm text-slate-500 mb-5 text-center max-w-[280px]">
+                            Take a photo with your camera or upload from your gallery to get started.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={() => cameraInputRef.current?.click()}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              <Camera className="h-4 w-4" />
+                              Take Photo
+                            </Button>
+                            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                              <ImageIcon className="h-4 w-4" />
+                              Upload
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
