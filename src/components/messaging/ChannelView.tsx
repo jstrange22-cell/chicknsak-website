@@ -30,6 +30,7 @@ import {
   useChannelMembers,
   useMarkChannelRead,
   useSendMessage,
+  useDeleteMessage,
   useTyping,
   useMessageSearch,
   useMessageReadReceipts,
@@ -115,6 +116,7 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
   const { data: members = [] } = useChannelMembers(channelId);
   const markRead = useMarkChannelRead(channelId);
   const sendMessage = useSendMessage();
+  const deleteMessage = useDeleteMessage();
   const { handleTyping } = useTyping(channelId);
   const { markMessagesAsRead } = useMessageReadReceipts(channelId);
   const {
@@ -179,6 +181,16 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
     },
     enabled: !!channelId,
   });
+
+  // For DM channels, show the other person's name instead of channel.name
+  const displayName = useMemo(() => {
+    if (!channel) return 'Loading...';
+    if (channel.channelType === 'direct' && members.length > 0) {
+      const otherMember = members.find((m) => m.id !== user?.uid);
+      if (otherMember) return otherMember.fullName;
+    }
+    return channel.name;
+  }, [channel, members, user?.uid]);
 
   // Build a userId -> userName lookup from members
   const userNameMap = useMemo(() => {
@@ -570,7 +582,7 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
         )}
         <div className="flex-1 min-w-0">
           <h3 className="text-base font-semibold text-slate-900 truncate">
-            {channel?.name ?? 'Loading...'}
+            {displayName}
           </h3>
           <div className="flex items-center gap-1 text-xs text-slate-400">
             <Users className="h-3 w-3" />
@@ -876,6 +888,24 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
                             <Pin className="h-3 w-3 text-slate-400" />
                           )}
                         </button>
+
+                        {/* Delete message action (own messages only) */}
+                        {isCurrentUser && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Delete this message?')) {
+                                void deleteMessage.mutateAsync(msg.id);
+                              }
+                            }}
+                            className={cn(
+                              'absolute -top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full bg-white shadow-sm border border-slate-200',
+                              'left-6',
+                            )}
+                            title="Delete message"
+                          >
+                            <Trash2 className="h-3 w-3 text-red-400" />
+                          </button>
+                        )}
 
                         {/* Reactions */}
                         <MessageReactions

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, RotateCcw, Check, ChevronDown } from 'lucide-react';
+import { X, RotateCcw, Check, ChevronDown, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/hooks/useProjects';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,8 @@ interface PhotoPreviewProps {
   autoShowForm?: boolean;
   /** If true, render inline (not fixed overlay) — for use inside ProjectDetail */
   inline?: boolean;
+  /** Error message to display from a failed save attempt */
+  saveError?: string | null;
 }
 
 export interface SavePhotoData {
@@ -37,6 +39,7 @@ export function PhotoPreview({
   preselectedProjectId,
   autoShowForm = false,
   inline = false,
+  saveError = null,
 }: PhotoPreviewProps) {
   const [showForm, setShowForm] = useState(autoShowForm);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -186,6 +189,17 @@ export function PhotoPreview({
             </p>
           )}
 
+          {/* Save Error Banner */}
+          {saveError && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
+              <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-red-800">Failed to save photo</p>
+                <p className="text-xs text-red-600 mt-0.5">{saveError}</p>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
             <Button
@@ -202,7 +216,7 @@ export function PhotoPreview({
               isLoading={isSaving}
               className="flex-1"
             >
-              Save Photo
+              {saveError ? 'Retry Save' : 'Save Photo'}
             </Button>
           </div>
         </div>

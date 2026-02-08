@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Camera, SlidersHorizontal, RefreshCw, CheckSquare, Square, X } from 'lucide-react';
+import { Search, Plus, Camera, SlidersHorizontal, RefreshCw, Loader2, CheckSquare, Square, X } from 'lucide-react';
 import { useProjects, useUpdateProject } from '@/hooks/useProjects';
+import { useIntegration, useUpdateSyncTimestamp } from '@/hooks/useIntegrations';
+import { useAuthContext } from '@/components/auth/AuthProvider';
+import { JobTreadClient } from '@/lib/integrations/jobtread';
+import { syncJobsToProjects } from '@/lib/integrations/jobtreadSync';
 import { ProjectCard } from './ProjectCard';
 import { cn } from '@/lib/utils';
 import type { ProjectStatus } from '@/types';
@@ -36,12 +40,34 @@ export function ProjectList({ onCreateClick }: ProjectListProps) {
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   const updateProject = useUpdateProject();
+  const { profile } = useAuthContext();
+  const integration = useIntegration('jobtread');
+  const updateSyncTimestamp = useUpdateSyncTimestamp();
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const { data: projects, isLoading, error, refetch } = useProjects({
     search: search || undefined,
     sort,
     status: statusFilter || undefined,
   });
+
+  const handleSync = async () => {
+    // If JobTread is connected, sync first
+    if (integration?.isActive && integration?.accessToken && profile?.companyId && integration?.id) {
+      setIsSyncing(true);
+      try {
+        const client = new JobTreadClient(integration.accessToken);
+        await syncJobsToProjects(client, profile.companyId);
+        await updateSyncTimestamp.mutateAsync(integration.id);
+      } catch (err) {
+        console.error('JobTread sync failed:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+    // Always refetch local data
+    refetch();
+  };
 
   // Clear selection when filter changes
   useEffect(() => {
@@ -61,7 +87,7 @@ export function ProjectList({ onCreateClick }: ProjectListProps) {
     }
   }, [showSortMenu]);
 
-  const selectable = true; // Always show checkboxes
+  const selectable = false; // Checkboxes removed from project view (kept in admin)
   const allSelected = projects && projects.length > 0 && selectedIds.size === projects.length;
 
   function toggleSelect(id: string) {
@@ -176,13 +202,18 @@ export function ProjectList({ onCreateClick }: ProjectListProps) {
           )}
         </div>
 
-        {/* Refresh Button */}
+        {/* Refresh / Sync Button */}
         <button
-          onClick={() => refetch()}
-          className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors"
-          aria-label="Refresh"
+          onClick={handleSync}
+          disabled={isSyncing}
+          className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-50"
+          aria-label={integration?.isActive ? "Sync with JobTread" : "Refresh"}
         >
-          <RefreshCw className="h-4 w-4" />
+          {isSyncing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
         </button>
 
         {/* Selection info */}
@@ -233,8 +264,8 @@ export function ProjectList({ onCreateClick }: ProjectListProps) {
 
       {/* Project List */}
       <div className="flex-1 overflow-y-auto bg-white rounded-lg border border-slate-200">
-        {/* Select All Header */}
-        {projects && projects.length > 0 && (
+        {/* Select All Header (only in selectable mode) */}
+        {selectable && projects && projects.length > 0 && (
           <div className="flex items-center px-4 py-2 border-b border-slate-100 bg-slate-50/50">
             <button
               onClick={toggleSelectAll}

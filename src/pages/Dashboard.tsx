@@ -490,7 +490,7 @@ export default function Dashboard() {
   // ---- Render ----
 
   return (
-    <div className="px-3 py-2 md:p-4 space-y-5 md:space-y-6 pb-24 md:pb-8">
+    <div className="px-3 py-2 md:p-4 space-y-5 md:space-y-6 pb-24 md:pb-8 overflow-x-hidden">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Admin Dashboard</h1>

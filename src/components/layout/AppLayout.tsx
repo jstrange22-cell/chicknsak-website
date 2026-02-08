@@ -17,7 +17,7 @@ export function AppLayout() {
   const { data: unreadCount = 0 } = useUnreadCount(user?.uid);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 overflow-x-hidden max-w-[100vw]">
       <OfflineBanner />
       <InstallPrompt />
       {isDesktop ? (

@@ -1,9 +1,6 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
+/* Note: #root styles are managed in index.css for the app layout.
+   The legacy Vite boilerplate max-width/padding/text-align rules have
+   been removed to prevent layout conflicts and horizontal overflow. */
 
 .logo {
   height: 6em;

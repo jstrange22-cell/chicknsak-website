@@ -47,23 +47,8 @@ function getGreeting(): { text: string; Icon: React.ElementType } {
   return { text: 'Good evening', Icon: Moon };
 }
 
-// Gradient placeholders for project cards without cover photos
-const gradients = [
-  'from-blue-400 to-indigo-500',
-  'from-amber-400 to-orange-500',
-  'from-emerald-400 to-teal-500',
-  'from-rose-400 to-pink-500',
-  'from-violet-400 to-purple-500',
-  'from-cyan-400 to-sky-500',
-];
-
-function pickGradient(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return gradients[Math.abs(hash) % gradients.length];
-}
+// Single consistent color for all project cards
+const PROJECT_CARD_GRADIENT = 'from-blue-500 to-blue-600';
 
 // ---------------------------------------------------------------------------
 // Activity Feed Item -- photo-rich style
@@ -237,11 +222,11 @@ export default function Index() {
   // ---- Render ----
 
   return (
-    <div className="pb-28 md:pb-8">
+    <div className="pb-28 md:pb-8 overflow-x-hidden">
       {/* ================================================================
           DARK HERO HEADER
           ================================================================ */}
-      <div className="bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800/90 px-5 md:px-8 pt-6 pb-20 md:pb-24 md:rounded-2xl md:-mx-0">
+      <div className="bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800/90 px-5 md:px-8 pt-6 pb-20 md:pb-24 md:rounded-2xl md:-mx-0 overflow-hidden">
         <div className="flex items-center gap-2.5 mb-1">
           <GreetingIcon className="h-5 w-5 text-amber-400" />
           <span className="text-amber-400/90 text-sm font-medium">{greetingText}</span>
@@ -367,11 +352,11 @@ export default function Index() {
         </div>
 
         {projectsLoading ? (
-          <div className="flex gap-3 overflow-x-auto pb-2 px-5 md:px-0 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible">
+          <div className="flex flex-col gap-3 px-5 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="w-48 md:w-auto shrink-0 md:shrink rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden animate-pulse"
+                className="w-full rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden animate-pulse"
               >
                 <div className="h-28 bg-slate-100" />
                 <div className="p-3 space-y-2">
@@ -382,19 +367,19 @@ export default function Index() {
             ))}
           </div>
         ) : recentProjects && recentProjects.length > 0 ? (
-          <div className="flex gap-3 overflow-x-auto pb-2 px-5 md:px-0 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible">
+          <div className="flex flex-col gap-3 px-5 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-3">
             {recentProjects.map((project) => (
               <Link
                 key={project.id}
                 to={`/projects/${project.id}`}
-                className="w-48 md:w-auto shrink-0 md:shrink rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden hover:shadow-lg transition-shadow active:scale-[0.98] transition-transform"
+                className="w-full rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden hover:shadow-lg transition-shadow active:scale-[0.98] transition-transform"
               >
                 {/* Cover photo area */}
                 <div
                   className={cn(
                     'h-28 relative flex items-end',
                     'bg-gradient-to-br',
-                    pickGradient(project.id)
+                    PROJECT_CARD_GRADIENT
                   )}
                 >
                   {/* Photo count badge */}

@@ -47,7 +47,7 @@ export default function Messages() {
 
   // ---------- Tab bar ----------
   const TabBar = () => (
-    <div className="flex border-b border-slate-200 bg-white px-4 overflow-x-auto scrollbar-hide">
+    <div className="flex border-b border-slate-200 bg-white px-4 overflow-x-auto scrollbar-hide max-w-[100vw]">
       <button
         onClick={() => { setActiveTab('channels'); setSelectedChannelId(null); }}
         className={cn(

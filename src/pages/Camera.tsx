@@ -26,6 +26,7 @@ export default function Camera() {
 
   const [capturedPhoto, setCapturedPhoto] = useState<CapturedPhoto | null>(null);
   const [, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const isNative = Capacitor.isNativePlatform();
 
@@ -88,7 +89,12 @@ export default function Camera() {
   };
 
   const handleSavePhoto = async (data: SavePhotoData) => {
-    if (!capturedPhoto || !profile?.companyId || !user?.uid) return;
+    if (!capturedPhoto || !profile?.companyId || !user?.uid) {
+      setSaveError('Missing account information. Please sign out and sign back in.');
+      return;
+    }
+
+    setSaveError(null);
     setIsSaving(true);
 
     try {
@@ -113,7 +119,10 @@ export default function Camera() {
       }
     } catch (error) {
       console.error('Failed to save photo:', error);
-      alert('Failed to save photo. Please try again.');
+      const message = error instanceof Error
+        ? error.message
+        : 'An unexpected error occurred. Please try again.';
+      setSaveError(message);
     } finally {
       setIsSaving(false);
     }
@@ -130,6 +139,7 @@ export default function Camera() {
         onRetake={handleRetake}
         onSave={handleSavePhoto}
         preselectedProjectId={preselectedProjectId}
+        saveError={saveError}
       />
     );
   }

@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Clock,
   FileText,
-  CheckSquare,
   ListTodo,
   FileBarChart,
   MapPin,
@@ -33,20 +32,6 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { PhotoGrid } from '@/components/photos/PhotoGrid';
 import { PhotoPreview, type SavePhotoData } from '@/components/camera/PhotoPreview';
 import { uploadPhoto } from '@/lib/storage';
-
-// Checklists
-import {
-  useProjectChecklists,
-  useChecklist,
-  useCreateChecklist,
-  useUpdateChecklistItem,
-  useCompleteChecklist,
-} from '@/hooks/useChecklists';
-import {
-  useChecklistTemplates,
-} from '@/hooks/useChecklistTemplates';
-import ChecklistTemplateList from '@/components/checklists/ChecklistTemplateList';
-import ChecklistRunner from '@/components/checklists/ChecklistRunner';
 
 // Tasks
 import {
@@ -85,13 +70,12 @@ import { useProjectCollaborators, useRemoveCollaborator } from '@/hooks/useColla
 import { CollaboratorList } from '@/components/collaborators/CollaboratorList';
 import { InviteCollaborator } from '@/components/collaborators/InviteCollaborator';
 
-import type { ChecklistTemplate, TaskPriority, PageType, ReportType, Page, Report } from '@/types';
+import type { TaskPriority, PageType, ReportType, Page, Report } from '@/types';
 
 const tabs = [
   { id: 'photos', label: 'Photos' },
   { id: 'pages', label: 'Pages' },
   { id: 'documents', label: 'Files' },
-  { id: 'checklists', label: 'Checklists' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'reports', label: 'Reports' },
   { id: 'timeline', label: 'Timeline' },
@@ -110,10 +94,6 @@ export default function ProjectDetail() {
   const [uploadProgress, setUploadProgress] = useState('');
   const [capturedPhoto, setCapturedPhoto] = useState<{ dataUrl: string; blob: Blob; timestamp: Date } | null>(null);
   const { position } = useGeolocation();
-
-  // Checklist state
-  const [showNewChecklist, setShowNewChecklist] = useState(false);
-  const [activeChecklistId, setActiveChecklistId] = useState<string | null>(null);
 
   // Task state
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -137,14 +117,6 @@ export default function ProjectDetail() {
 
   // Project data
   const { data: project, isLoading, error } = useProject(id);
-
-  // Checklists data & mutations
-  const { data: checklists, isLoading: checklistsLoading } = useProjectChecklists(id);
-  const { data: templates } = useChecklistTemplates();
-  const { data: activeChecklistData } = useChecklist(activeChecklistId ?? undefined);
-  const createChecklist = useCreateChecklist();
-  const updateChecklistItem = useUpdateChecklistItem();
-  const completeChecklist = useCompleteChecklist();
 
   // Tasks data & mutations
   const { data: tasks, isLoading: tasksLoading } = useProjectTasks(id);
@@ -182,40 +154,6 @@ export default function ProjectDetail() {
   const { data: collaborators, isLoading: collaboratorsLoading } = useProjectCollaborators(id);
   const removeCollaborator = useRemoveCollaborator();
 
-  // Handlers
-  const handleCreateFromTemplate = (template: ChecklistTemplate) => {
-    if (!id) return;
-    createChecklist.mutate(
-      {
-        projectId: id,
-        name: template.name,
-        templateId: template.id,
-        sections: template.sections,
-      },
-      {
-        onSuccess: () => {
-          setShowNewChecklist(false);
-        },
-      }
-    );
-  };
-
-  const handleCreateBlank = () => {
-    if (!id) return;
-    createChecklist.mutate(
-      {
-        projectId: id,
-        name: 'Untitled Checklist',
-        sections: [{ name: 'General', fields: [{ id: crypto.randomUUID(), label: 'Item 1', type: 'checkbox', required: false }] }],
-      },
-      {
-        onSuccess: () => {
-          setShowNewChecklist(false);
-        },
-      }
-    );
-  };
-
   const filteredTasks = (tasks ?? []).filter((t) => {
     if (taskFilter === 'all') return true;
     return t.status === taskFilter;
@@ -242,33 +180,6 @@ export default function ProjectDetail() {
         <p className="text-slate-500 mb-4">Project not found</p>
         <Button onClick={() => navigate('/projects')}>Back to Projects</Button>
       </div>
-    );
-  }
-
-  // If checklist runner is active, show it full-screen
-  if (activeChecklistId && activeChecklistData) {
-    return (
-      <ChecklistRunner
-        checklist={{
-          id: activeChecklistData.checklist.id,
-          name: activeChecklistData.checklist.name,
-          status: activeChecklistData.checklist.status,
-          projectId: activeChecklistData.checklist.projectId,
-        }}
-        items={activeChecklistData.items}
-        onUpdateItem={(itemId, updates) => {
-          updateChecklistItem.mutate({ itemId, updates });
-        }}
-        onComplete={() => {
-          completeChecklist.mutate(
-            { checklistId: activeChecklistId },
-            { onSuccess: () => setActiveChecklistId(null) }
-          );
-        }}
-        onBack={() => setActiveChecklistId(null)}
-        projectName={project.name}
-        isCompleting={completeChecklist.isPending}
-      />
     );
   }
 
@@ -354,14 +265,13 @@ export default function ProjectDetail() {
     photos: (photos ?? []).length,
     pages: (pages ?? []).length,
     documents: (documents ?? []).length,
-    checklists: (checklists ?? []).length,
     tasks: (tasks ?? []).length,
     reports: (reports ?? []).length,
     timeline: 0,
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Top Header */}
       <div className="border-b border-slate-200">
         <div className="max-w-screen-xl mx-auto px-4 md:px-6">
@@ -377,7 +287,7 @@ export default function ProjectDetail() {
           </div>
 
           {/* Action Row */}
-          <div className="flex items-center gap-2 pb-3">
+          <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide">
             <button className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-amber-500 transition-colors" title="Star project">
               <Star className="h-5 w-5" />
             </button>
@@ -428,12 +338,12 @@ export default function ProjectDetail() {
       </div>
 
       {/* Two-column Layout */}
-      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-0">
+      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-0 overflow-x-hidden">
         <div className="flex flex-col lg:flex-row gap-0">
           {/* Left Content Area */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-x-hidden">
             {/* Tab Navigation - underline style */}
-            <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
+            <div className="sticky top-0 z-10 bg-white border-b border-slate-200 overflow-hidden">
               <div className="flex overflow-x-auto scrollbar-hide gap-0">
                 {tabs.map((tab) => (
                   <button
@@ -604,131 +514,6 @@ export default function ProjectDetail() {
                   <Clock className="h-10 w-10 text-slate-300 mb-3" />
                   <p className="text-slate-500 text-sm">No activity yet</p>
                   <p className="text-slate-400 text-xs mt-1">Activity will appear here as work progresses</p>
-                </div>
-              )}
-
-              {/* CHECKLISTS TAB */}
-              {activeTab === 'checklists' && (
-                <div className="space-y-4">
-                  {showNewChecklist ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-slate-900">
-                          New Checklist
-                        </h3>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowNewChecklist(false)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={handleCreateBlank}
-                        className="w-full justify-start"
-                        isLoading={createChecklist.isPending}
-                      >
-                        <Plus className="h-4 w-4" />
-                        Blank Checklist
-                      </Button>
-                      <ChecklistTemplateList
-                        templates={templates ?? []}
-                        isLoading={false}
-                        onCreateNew={() => {}}
-                        onEdit={() => {}}
-                        onDelete={() => {}}
-                        onSelect={handleCreateFromTemplate}
-                        selectable
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      {checklistsLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                        </div>
-                      ) : (checklists ?? []).length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20">
-                          <CheckSquare className="h-10 w-10 text-slate-300 mb-3" />
-                          <p className="font-semibold text-slate-700 mb-1">Don't Drop the Ball</p>
-                          <p className="text-slate-400 text-sm mb-4">Create checklists to track work on this project</p>
-                          <Button onClick={() => setShowNewChecklist(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                            <Plus className="h-4 w-4" />
-                            Create Checklist
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-end">
-                            <Button
-                              size="sm"
-                              onClick={() => setShowNewChecklist(true)}
-                            >
-                              <Plus className="h-4 w-4" />
-                              New
-                            </Button>
-                          </div>
-                          {(checklists ?? []).map((checklist) => {
-                            const percent =
-                              checklist.totalItems > 0
-                                ? Math.round(
-                                    (checklist.completedItems /
-                                      checklist.totalItems) *
-                                      100
-                                  )
-                                : 0;
-
-                            return (
-                              <button
-                                key={checklist.id}
-                                onClick={() =>
-                                  setActiveChecklistId(checklist.id)
-                                }
-                                className="w-full bg-white rounded-lg border border-slate-200 p-4 text-left hover:border-blue-300 transition-colors"
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <h4 className="font-semibold text-slate-900">
-                                    {checklist.name}
-                                  </h4>
-                                  <span
-                                    className={cn(
-                                      'px-2 py-0.5 rounded-full text-xs font-medium',
-                                      checklist.status === 'completed'
-                                        ? 'bg-emerald-100 text-emerald-700'
-                                        : 'bg-blue-100 text-blue-700'
-                                    )}
-                                  >
-                                    {checklist.status === 'completed'
-                                      ? 'Completed'
-                                      : `${percent}%`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
-                                    <div
-                                      className={cn(
-                                        'h-full rounded-full transition-all duration-300',
-                                        percent === 100
-                                          ? 'bg-emerald-500'
-                                          : 'bg-blue-500'
-                                      )}
-                                      style={{ width: `${percent}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-slate-400 shrink-0">
-                                    {checklist.completedItems}/
-                                    {checklist.totalItems}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  )}
                 </div>
               )}
 

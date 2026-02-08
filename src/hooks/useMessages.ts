@@ -84,6 +84,30 @@ export function useChannels() {
         });
       }
 
+      // 2b. For direct channels, resolve the OTHER member's name
+      const directChannels = channels.filter((c) => c.channelType === 'direct');
+      if (directChannels.length > 0 && userId) {
+        await Promise.all(
+          directChannels.map(async (channel) => {
+            const memberQ = query(
+              collection(db, 'channelMembers'),
+              where('channelId', '==', channel.id),
+            );
+            const memberSnap = await getDocs(memberQ);
+            const otherUserId = memberSnap.docs
+              .map((d) => d.data().userId as string)
+              .find((id) => id !== userId);
+
+            if (otherUserId) {
+              const userDoc = await getDoc(doc(db, 'users', otherUserId));
+              if (userDoc.exists()) {
+                channel.name = (userDoc.data().fullName as string) ?? channel.name;
+              }
+            }
+          }),
+        );
+      }
+
       // 3. Fetch last message for each channel
       await Promise.all(
         channels.map(async (channel) => {
@@ -220,6 +244,23 @@ export function useSendMessage() {
     },
     onSuccess: () => {
       // Invalidate channels to refresh last-message previews
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useDeleteMessage
+// ---------------------------------------------------------------------------
+
+export function useDeleteMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      await deleteDoc(doc(db, 'messages', messageId));
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['channels'] });
     },
   });

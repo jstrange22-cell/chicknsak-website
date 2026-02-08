@@ -68,7 +68,7 @@ export default function Projects() {
   };
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-48px)] px-3 md:px-0">
+    <div className="flex flex-col min-h-[calc(100vh-48px)] px-3 md:px-0 overflow-x-hidden">
       {/* Page Title - CompanyCam uses very prominent bold title */}
       <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4 md:mb-6">Projects</h1>
 

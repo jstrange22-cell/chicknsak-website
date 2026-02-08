@@ -65,9 +65,9 @@ export function ReloadPrompt() {
       }
     }
 
-    void registerSW();
-
-    // Listen for controller change (another tab triggered the update)
+    // Listen for controller change (fires when a new SW takes over, whether
+    // triggered by this tab or another tab). Set this up *before* calling
+    // registerSW so we never miss the event.
     let refreshing = false;
     function onControllerChange() {
       if (!refreshing) {
@@ -76,6 +76,18 @@ export function ReloadPrompt() {
       }
     }
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+
+    void registerSW();
+
+    // Also check via navigator.serviceWorker.ready — if a SW is already
+    // controlling the page and has a waiting worker we haven't seen yet
+    // (e.g. the page was hard-refreshed), surface the banner.
+    navigator.serviceWorker.ready.then((reg) => {
+      if (reg.waiting) {
+        setWaitingWorker(reg.waiting);
+        setShowReload(true);
+      }
+    });
 
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -88,7 +100,15 @@ export function ReloadPrompt() {
       // Tell the waiting SW to skip waiting and become active
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
       setShowReload(false);
-      // The controllerchange listener will reload the page
+
+      // Fallback: force reload after 1.5s if controllerchange doesn't fire.
+      // The controllerchange listener (set up in the useEffect) will reload
+      // immediately if it fires, and its `refreshing` guard prevents a double
+      // reload. But on some mobile browsers / edge cases the event never
+      // arrives, so this timeout guarantees the update still lands.
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     }
   };
 
