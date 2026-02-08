@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { ProtectedRoute, PublicRoute } from '@/components/auth/ProtectedRoute';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { ReloadPrompt } from '@/components/pwa/ReloadPrompt';
 import { Loader2 } from 'lucide-react';
 
 // Lightweight loading fallback
@@ -82,6 +83,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <ReloadPrompt />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Auth Routes (Public) */}
