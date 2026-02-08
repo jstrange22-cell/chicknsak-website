@@ -95,6 +95,18 @@ export async function syncJobsToProjects(
   // that prevent new/active JobTread jobs from syncing.
   const jobs = await client.getAllJobs();
 
+  // Build a jobId → account info map in a SINGLE API call.
+  // In JobTread, jobs don't have a direct customer field —
+  // the link goes: organization → accounts → jobs.
+  // We reverse-map this to get customer info per job.
+  let accountMap = new Map<string, { accountName: string; contactName?: string; contactTitle?: string }>();
+  try {
+    accountMap = await client.buildJobAccountMap();
+  } catch (err) {
+    console.warn('[jobtreadSync] Could not build account map:', err);
+    // Non-fatal — sync continues without customer info
+  }
+
   let created = 0;
   let updated = 0;
   let skipped = 0;
@@ -112,8 +124,6 @@ export async function syncJobsToProjects(
       const existing = await getDocs(existingQuery);
 
       // Skip projects that were manually archived in ProjectWorks.
-      // This prevents sync from overwriting a user's decision AND frees up
-      // slots in the 100-job sync limit for legitimate active jobs.
       if (!existing.empty) {
         const existingData = existing.docs[0].data();
         if (existingData.status === 'archived') {
@@ -123,13 +133,6 @@ export async function syncJobsToProjects(
       }
 
       // Map JobTread job → Firestore project data.
-      // JobTread provides location.address as a full string (no separate parts).
-      // IMPORTANT: Firestore does not accept `undefined` — use `null` or omit.
-      //
-      // We build separate data objects for create vs update because:
-      // - On CREATE: set the mapped status from JobTread
-      // - On UPDATE: do NOT overwrite status — the user may have manually
-      //   changed it in ProjectWorks (e.g. moved a "lead" to "active")
       const baseData: Record<string, unknown> = {
         companyId,
         name: job.name || 'Untitled Job',
@@ -146,10 +149,13 @@ export async function syncJobsToProjects(
       if (job.location?.longitude != null) baseData.longitude = job.location.longitude;
       if (job.description) baseData.description = job.description;
 
-      // Note: Contact info (customer name/email/phone) is not fetched during
-      // bulk sync to avoid making 2+ extra API calls per job (which causes
-      // rate limiting and 400 errors). Contact data can be fetched on demand
-      // when viewing individual project details.
+      // Add customer info from the account map (fetched in one call above)
+      const accountInfo = accountMap.get(job.id);
+      if (accountInfo) {
+        baseData.customerName = accountInfo.accountName;
+        if (accountInfo.contactName) baseData.customerContact = accountInfo.contactName;
+        if (accountInfo.contactTitle) baseData.customerTitle = accountInfo.contactTitle;
+      }
 
       if (existing.empty) {
         // Create a new project — set status from JobTread mapping
@@ -194,9 +200,16 @@ export interface ProposalSyncResult {
 }
 
 /**
- * Fetches approved proposals from a JobTread job and creates checklists
- * from them in Firestore. Each proposal group becomes a checklist section,
- * and each line item becomes a checkbox field.
+ * Fetches proposals (documents with type "customerOrder") from a JobTread
+ * job and creates checklists from them in Firestore.
+ *
+ * In JobTread's Pave API:
+ *   - Proposals are "documents" with type = "customerOrder"
+ *   - Line items are "costItems" on the document
+ *   - There are NO "estimates" or "proposals" fields on jobs
+ *
+ * Each proposal becomes a checklist. Cost items become checkbox fields
+ * in a single section named after the proposal.
  *
  * Already-synced proposals (matched by metadata.jobtreadProposalId) are skipped.
  */
@@ -211,16 +224,16 @@ export async function syncProposalsToChecklists(
     throw new Error('All parameters are required for proposal sync');
   }
 
+  // Fetch proposals (documents with type "customerOrder") from the job
   const proposals = await client.getJobProposals(jobtreadJobId);
 
-  // Filter for approved proposals — check multiple possible status values
-  // JobTread may use "approved", "accepted", "signed", or "won"
+  // Filter for approved proposals
   const approvedStatuses = ['approved', 'accepted', 'signed', 'won', 'active'];
   const approved = proposals.filter(
     (p) => approvedStatuses.includes(p.status?.toLowerCase() ?? '')
   );
 
-  // If no approved proposals, try syncing ALL proposals (the status filter might be wrong)
+  // If no approved proposals, sync ALL proposals
   const toSync = approved.length > 0 ? approved : proposals;
 
   let synced = 0;
@@ -244,16 +257,17 @@ export async function syncProposalsToChecklists(
         continue;
       }
 
-      // Build sections from proposal groups
-      const sections: TemplateSection[] = (proposal.groups?.nodes ?? []).map((group) => ({
-        name: group.name || 'Untitled Group',
-        fields: (group.lineItems?.nodes ?? []).map((item): TemplateField => ({
+      // Build a single section from the proposal's cost items
+      const costItems = proposal.costItems?.nodes ?? [];
+      const sections: TemplateSection[] = [{
+        name: proposal.name || 'Imported Proposal',
+        fields: costItems.map((item): TemplateField => ({
           id: crypto.randomUUID(),
           label: item.name || 'Untitled Item',
           type: 'checkbox',
           required: false,
         })),
-      }));
+      }];
 
       // Create the checklist document
       const checklistDoc = await addDoc(collection(db, 'checklists'), {
@@ -265,6 +279,7 @@ export async function syncProposalsToChecklists(
         createdBy: userId,
         metadata: {
           jobtreadProposalId: proposal.id,
+          jobtreadDocumentType: proposal.type,
           importedFrom: 'jobtread',
         },
         createdAt: serverTimestamp(),

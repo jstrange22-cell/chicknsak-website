@@ -35,9 +35,30 @@ export interface JobTreadLocation {
 export interface JobTreadContact {
   id: string;
   name?: string;
-  email?: string;
-  phone?: string;
-  company?: string;
+  firstName?: string;
+  lastName?: string;
+  title?: string;
+}
+
+/** An account (customer or vendor) in JobTread */
+export interface JobTreadAccount {
+  id: string;
+  name: string;
+  type?: string; // 'customer' | 'vendor'
+  contacts?: { nodes: JobTreadContact[] };
+  jobs?: { nodes: Array<{ id: string }> };
+}
+
+/** A document (proposal/invoice) in JobTread */
+export interface JobTreadDocument {
+  id: string;
+  name: string;
+  status: string;
+  type: string; // 'customerOrder' = proposal, 'customerInvoice' = invoice
+  createdAt?: string;
+  job?: { id: string; name: string };
+  account?: { id: string; name: string };
+  costItems?: { nodes: Array<{ id: string; name: string; description?: string | null }> };
 }
 
 export interface JobTreadJob {
@@ -422,59 +443,73 @@ export class JobTreadClient {
   }
 
   // -----------------------------------------------------------------------
-  // Contacts — try multiple field names since Pave schema varies
+  // Accounts & Contacts
   // -----------------------------------------------------------------------
 
   /**
-   * Try to fetch contact/customer info for a job.
-   * The Pave API field name varies — we try "contacts" first,
-   * then "accounts", then query the job directly for common fields.
-   * Returns null if no contact info is available.
+   * Fetch all accounts (customers & vendors) with their contacts and jobs.
+   * In JobTread's Pave API, the data model is:
+   *   organization → accounts → contacts (people with names/titles)
+   *   organization → accounts → jobs (link between account and job)
+   *
+   * There is NO direct customer/contact field on a job — the relationship
+   * goes through accounts. So we fetch all accounts with their jobs, then
+   * build a reverse lookup map: jobId → account info.
    */
-  async getJobContacts(jobId: string): Promise<JobTreadContact | null> {
-    // Attempt 1: try "contacts" collection on the job
-    try {
-      const data = await this.query<{
-        job: {
-          contacts?: { nodes: JobTreadContact[] };
+  async getAccountsWithJobs(): Promise<JobTreadAccount[]> {
+    const orgId = await this.getOrganizationId();
+
+    const data = await this.query<{
+      organization: {
+        accounts: {
+          nodes: JobTreadAccount[];
         };
-      }>({
-        job: {
-          $: { id: jobId },
-          contacts: {
-            $: { size: 1 },
-            nodes: f('id', 'name', 'email', 'phone', 'company'),
+      };
+    }>({
+      organization: {
+        $: { id: orgId },
+        accounts: {
+          $: { size: 100 },
+          nodes: {
+            ...f('id', 'name', 'type'),
+            contacts: {
+              $: { size: 5 },
+              nodes: f('id', 'name', 'firstName', 'lastName', 'title'),
+            },
+            jobs: {
+              $: { size: 100 },
+              nodes: f('id'),
+            },
           },
         },
-      });
-      const nodes = data.job?.contacts?.nodes;
-      if (nodes && nodes.length > 0) return nodes[0];
-    } catch {
-      // Field doesn't exist, try next
+      },
+    });
+
+    return data.organization?.accounts?.nodes ?? [];
+  }
+
+  /**
+   * Build a map of jobId → account info (customer name + primary contact).
+   * This is called once during sync rather than per-job.
+   */
+  async buildJobAccountMap(): Promise<Map<string, { accountName: string; contactName?: string; contactTitle?: string }>> {
+    const accounts = await this.getAccountsWithJobs();
+    const map = new Map<string, { accountName: string; contactName?: string; contactTitle?: string }>();
+
+    for (const account of accounts) {
+      const primaryContact = account.contacts?.nodes?.[0];
+      const info = {
+        accountName: account.name,
+        contactName: primaryContact?.name ?? undefined,
+        contactTitle: primaryContact?.title ?? undefined,
+      };
+
+      for (const job of account.jobs?.nodes ?? []) {
+        map.set(job.id, info);
+      }
     }
 
-    // Attempt 2: try "accounts" collection
-    try {
-      const data = await this.query<{
-        job: {
-          accounts?: { nodes: JobTreadContact[] };
-        };
-      }>({
-        job: {
-          $: { id: jobId },
-          accounts: {
-            $: { size: 1 },
-            nodes: f('id', 'name', 'email', 'phone', 'company'),
-          },
-        },
-      });
-      const nodes = data.job?.accounts?.nodes;
-      if (nodes && nodes.length > 0) return nodes[0];
-    } catch {
-      // Field doesn't exist either
-    }
-
-    return null;
+    return map;
   }
 
   // -----------------------------------------------------------------------
@@ -573,86 +608,80 @@ export class JobTreadClient {
   }
 
   // -----------------------------------------------------------------------
-  // Proposals
+  // Documents (Proposals & Invoices)
   // -----------------------------------------------------------------------
 
   /**
-   * Fetch proposals/estimates for a specific job.
-   * JobTread may call these "proposals" or "estimates" depending on version.
-   * Returns proposals with their groups and line items.
+   * Fetch proposals for a specific job.
+   *
+   * In JobTread's Pave API, proposals are stored as "documents" with
+   * type "customerOrder". There is NO "proposals" or "estimates" field
+   * on jobs. Cost items on a document serve as line items.
    */
-  async getJobProposals(jobId: string): Promise<JobTreadProposal[]> {
-    // Try "estimates" first (more common in newer JobTread versions),
-    // then fall back to "proposals"
-    try {
-      const data = await this.query<{
-        job: {
-          estimates?: {
-            nodes: JobTreadProposal[];
-          };
-          proposals?: {
-            nodes: JobTreadProposal[];
-          };
+  async getJobProposals(jobId: string): Promise<JobTreadDocument[]> {
+    const data = await this.query<{
+      job: {
+        documents: {
+          nodes: JobTreadDocument[];
         };
-      }>({
-        job: {
-          $: { id: jobId },
-          estimates: {
-            nodes: {
-              ...f('id', 'name', 'status'),
-              groups: {
-                nodes: {
-                  ...f('id', 'name'),
-                  lineItems: {
-                    nodes: f('id', 'name', 'description'),
-                  },
-                },
-              },
+      };
+    }>({
+      job: {
+        $: { id: jobId },
+        documents: {
+          $: {
+            size: 50,
+            where: { '=': [{ field: 'type' }, { value: 'customerOrder' }] },
+          },
+          nodes: {
+            ...f('id', 'name', 'status', 'type', 'createdAt'),
+            account: f('id', 'name'),
+            costItems: {
+              $: { size: 100 },
+              nodes: f('id', 'name', 'description'),
             },
           },
         },
-      });
+      },
+    });
 
-      const estimateNodes = data.job?.estimates?.nodes;
-      if (estimateNodes && estimateNodes.length > 0) {
-        return estimateNodes;
-      }
-    } catch (err) {
-      // "estimates" field might not exist — try "proposals" instead
-      console.warn('[JobTread] "estimates" query failed, trying "proposals":', err);
-    }
+    return data.job?.documents?.nodes ?? [];
+  }
 
-    // Fallback: try "proposals"
-    try {
-      const data = await this.query<{
-        job: {
-          proposals: {
-            nodes: JobTreadProposal[];
-          };
+  /**
+   * Fetch ALL proposals across the organization (not per-job).
+   * Useful for bulk syncing proposals to checklists.
+   */
+  async getAllProposals(): Promise<JobTreadDocument[]> {
+    const orgId = await this.getOrganizationId();
+
+    const data = await this.query<{
+      organization: {
+        documents: {
+          nodes: JobTreadDocument[];
         };
-      }>({
-        job: {
-          $: { id: jobId },
-          proposals: {
-            nodes: {
-              ...f('id', 'name', 'status'),
-              groups: {
-                nodes: {
-                  ...f('id', 'name'),
-                  lineItems: {
-                    nodes: f('id', 'name', 'description'),
-                  },
-                },
-              },
+      };
+    }>({
+      organization: {
+        $: { id: orgId },
+        documents: {
+          $: {
+            size: 100,
+            where: { '=': [{ field: 'type' }, { value: 'customerOrder' }] },
+          },
+          nodes: {
+            ...f('id', 'name', 'status', 'type', 'createdAt'),
+            job: f('id', 'name'),
+            account: f('id', 'name'),
+            costItems: {
+              $: { size: 100 },
+              nodes: f('id', 'name', 'description'),
             },
           },
         },
-      });
+      },
+    });
 
-      return data.job?.proposals?.nodes ?? [];
-    } catch (err) {
-      console.error('[JobTread] Both "estimates" and "proposals" queries failed:', err);
-      return [];
-    }
+    return data.organization?.documents?.nodes ?? [];
   }
 }
