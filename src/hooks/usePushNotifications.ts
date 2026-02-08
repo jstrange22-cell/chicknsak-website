@@ -177,13 +177,20 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         return;
       }
 
+      // Register the FCM service worker if not already registered
+      let swRegistration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+      if (!swRegistration) {
+        swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      }
+
       // Get FCM token
-      const token = await getToken(messaging, {
-        vapidKey: VAPID_KEY,
-        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration(
-          '/firebase-messaging-sw.js',
-        ),
-      });
+      const tokenOptions: { serviceWorkerRegistration: ServiceWorkerRegistration; vapidKey?: string } = {
+        serviceWorkerRegistration: swRegistration,
+      };
+      if (VAPID_KEY) {
+        tokenOptions.vapidKey = VAPID_KEY;
+      }
+      const token = await getToken(messaging, tokenOptions);
 
       if (!token) {
         setError('Failed to get notification token.');

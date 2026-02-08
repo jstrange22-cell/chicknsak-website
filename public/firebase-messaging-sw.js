@@ -17,13 +17,13 @@ importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-com
 // Firebase config — must match src/lib/firebase.ts values
 // ---------------------------------------------------------------------------
 firebase.initializeApp({
-  apiKey: 'YOUR_FIREBASE_API_KEY',
-  authDomain: 'YOUR_PROJECT.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT.firebasestorage.app',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
-  measurementId: 'YOUR_MEASUREMENT_ID',
+  apiKey: 'AIzaSyAYVmBGio_iMbeCgn7iH0MPOga1k0xTY1U',
+  authDomain: 'projectworks-8b692.firebaseapp.com',
+  projectId: 'projectworks-8b692',
+  storageBucket: 'projectworks-8b692.firebasestorage.app',
+  messagingSenderId: '876322383528',
+  appId: '1:876322383528:web:654de92bee2c70015bc49d',
+  measurementId: 'G-3KCTDBLGR9',
 });
 
 const messaging = firebase.messaging();
@@ -34,11 +34,11 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function (payload) {
   console.log('[firebase-messaging-sw] Background message received:', payload);
 
-  var notificationTitle = payload.notification?.title || 'JobMate';
+  var notificationTitle = payload.notification?.title || 'ProjectWorks';
   var notificationOptions = {
     body: payload.notification?.body || 'You have a new message.',
-    icon: '/pwa-192x192.svg',
-    badge: '/pwa-192x192.svg',
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
     tag: payload.data?.channelId || 'general',
     data: {
       channelId: payload.data?.channelId || '',

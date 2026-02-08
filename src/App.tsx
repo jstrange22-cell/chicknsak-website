@@ -49,6 +49,7 @@ const AdminInvoicing = lazy(() => import('@/pages/admin/AdminInvoicing'));
 const AdminReports = lazy(() => import('@/pages/admin/AdminReports'));
 const AdminScheduling = lazy(() => import('@/pages/admin/AdminScheduling'));
 const AdminVendors = lazy(() => import('@/pages/admin/AdminVendors'));
+const AdminMessages = lazy(() => import('@/pages/admin/AdminMessages'));
 
 // Auth Pages
 const Login = lazy(() => import('@/pages/auth/Login'));
@@ -141,6 +142,7 @@ function App() {
                   <Route path="reports" element={<AdminReports />} />
                   <Route path="scheduling" element={<AdminScheduling />} />
                   <Route path="vendors" element={<AdminVendors />} />
+                  <Route path="messages" element={<AdminMessages />} />
                 </Route>
               </Route>
             </Routes>

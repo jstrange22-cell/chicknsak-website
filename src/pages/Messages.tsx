@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { MessageCircle, Users, UsersRound, Loader2 } from 'lucide-react';
 import { ChannelList } from '@/components/messaging/ChannelList';
 import { ChannelView } from '@/components/messaging/ChannelView';
@@ -19,11 +19,27 @@ export default function Messages() {
 
   const handleSelectChannel = (channelId: string) => {
     setSelectedChannelId(channelId);
+    // Push state so browser back button returns to channel list, not Home
+    if (!isDesktop) {
+      window.history.pushState({ channelId }, '');
+    }
   };
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     setSelectedChannelId(null);
-  };
+  }, []);
+
+  // Handle browser back button — stay in Messages instead of leaving
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      if (selectedChannelId) {
+        e.preventDefault();
+        setSelectedChannelId(null);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [selectedChannelId]);
 
   const handleChannelCreated = (channelId: string) => {
     setSelectedChannelId(channelId);
@@ -80,7 +96,12 @@ export default function Messages() {
   // ---------- Non-channel tabs ----------
   if (activeTab !== 'channels') {
     return (
-      <div className="h-full flex flex-col">
+      <div
+        className={cn(
+          'flex flex-col',
+          isDesktop ? 'h-[calc(100vh-2rem)]' : 'h-[calc(100dvh-4rem-4.5rem)]',
+        )}
+      >
         <TabBar />
         <div className="flex-1 overflow-y-auto">
           <Suspense fallback={<LoadingFallback />}>
@@ -93,23 +114,36 @@ export default function Messages() {
 
   // ---------- MOBILE LAYOUT (Channels tab) ----------
   if (!isDesktop) {
+    // When viewing a channel, hide the tab bar and use full height
+    if (selectedChannelId) {
+      return (
+        <>
+          <div className="fixed inset-0 top-16 bottom-[4.5rem] z-30 bg-white flex flex-col">
+            <ChannelView
+              channelId={selectedChannelId}
+              onBack={handleBack}
+            />
+          </div>
+
+          <CreateChannelModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={handleChannelCreated}
+          />
+        </>
+      );
+    }
+
     return (
       <>
-        <div className="h-full flex flex-col">
+        <div className="flex flex-col" style={{ height: 'calc(100dvh - 4rem - 4.5rem)' }}>
           <TabBar />
           <div className="flex-1 overflow-hidden">
-            {selectedChannelId ? (
-              <ChannelView
-                channelId={selectedChannelId}
-                onBack={handleBack}
-              />
-            ) : (
-              <ChannelList
-                onSelectChannel={handleSelectChannel}
-                selectedChannelId={selectedChannelId ?? undefined}
-                onNewChannel={() => setShowCreateModal(true)}
-              />
-            )}
+            <ChannelList
+              onSelectChannel={handleSelectChannel}
+              selectedChannelId={selectedChannelId ?? undefined}
+              onNewChannel={() => setShowCreateModal(true)}
+            />
           </div>
         </div>
 
@@ -125,7 +159,7 @@ export default function Messages() {
   // ---------- DESKTOP LAYOUT (Channels tab) ----------
   return (
     <>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-[calc(100vh-2rem)]">
         <TabBar />
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}

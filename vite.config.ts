@@ -16,6 +16,8 @@ export default defineConfig({
         short_name: 'ProjectWorks',
         description: 'Jobsite photo documentation and project management',
         start_url: '/',
+        scope: '/',
+        id: '/',
         theme_color: '#0f172a',
         background_color: '#f8fafc',
         display: 'standalone',

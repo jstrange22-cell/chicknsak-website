@@ -1,5 +1,16 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { ArrowLeft, SendHorizontal, Users, Paperclip, Bell, BellOff } from 'lucide-react';
+import {
+  ArrowLeft,
+  SendHorizontal,
+  Users,
+  Paperclip,
+  Bell,
+  BellOff,
+  Smile,
+  Image as ImageIcon,
+  X,
+  Loader2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { cn, formatRelativeTime, getInitials } from '@/lib/utils';
 import {
@@ -15,12 +26,48 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAuthContext } from '@/components/auth/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import type { Channel, Message } from '@/types';
 import { MessageReactions } from '@/components/messages/MessageReactions';
 import { TypingIndicator } from '@/components/messages/TypingIndicator';
 import { ReadReceipts } from '@/components/messages/ReadReceipts';
 import { MessageSearch } from '@/components/messages/MessageSearch';
+
+// ---------------------------------------------------------------------------
+// Emoji Data
+// ---------------------------------------------------------------------------
+
+const EMOJI_CATEGORIES = [
+  {
+    name: 'Smileys',
+    emojis: ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','😉','😍','🥰','😘','😋','😛','😜','🤪','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕'],
+  },
+  {
+    name: 'Gestures',
+    emojis: ['👍','👎','👊','✊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','✌️','🤞','🤟','🤘','👌','🤌','🤏','👈','👉','👆','👇','☝️','✋','🤚','🖐️','🖖','👋','🤙','💪','🦾','🖕'],
+  },
+  {
+    name: 'Objects',
+    emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💝','💘','⭐','🌟','✨','⚡','🔥','💯','🎉','🎊','🏆','🥇','🏅','🎯','💰','📱','💻','📷','📹','🔧','🔨','⚒️','🛠️','📋','📝','📌','📎','🔗','📁','📂'],
+  },
+  {
+    name: 'Construction',
+    emojis: ['🏗️','🏠','🏢','🏭','🧱','🪵','🪨','⛏️','🔩','🪛','🪚','🔧','🔨','⚒️','🛠️','🦺','👷','🚧','🏗️','📐','📏','🪜','🧲','🔌','💡','🚿','🪠','🧯','🗑️','📦','🚚','🚜'],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// GIF Search Types
+// ---------------------------------------------------------------------------
+
+interface GifResult {
+  id: string;
+  previewUrl: string;
+  fullUrl: string;
+  width: number;
+  height: number;
+}
 
 interface ChannelViewProps {
   channelId: string;
@@ -65,10 +112,20 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
   } = usePushNotifications();
 
   const [body, setBody] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifSearch, setShowGifSearch] = useState(false);
+  const [gifQuery, setGifQuery] = useState('');
+  const [gifResults, setGifResults] = useState<GifResult[]>([]);
+  const [gifLoading, setGifLoading] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<Message['attachments']>([]);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const gifSearchRef = useRef<HTMLDivElement>(null);
 
   // Fetch channel details
   const { data: channel } = useQuery({
@@ -156,21 +213,179 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
     }
   }, []);
 
+  // Close emoji/gif pickers on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+      if (gifSearchRef.current && !gifSearchRef.current.contains(e.target as Node)) {
+        setShowGifSearch(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // GIF search using Tenor (free, no API key needed for basic search)
+  const searchGifs = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setGifResults([]);
+      return;
+    }
+    setGifLoading(true);
+    try {
+      // Use Tenor's free API v2 with a generic key
+      const apiKey = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ'; // Google's public Tenor key
+      const resp = await fetch(
+        `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=${apiKey}&limit=20&media_filter=tinygif,gif`,
+      );
+      const data = await resp.json();
+      const results: GifResult[] = (data.results ?? []).map((r: any) => ({
+        id: r.id,
+        previewUrl: r.media_formats?.tinygif?.url ?? r.media_formats?.gif?.url ?? '',
+        fullUrl: r.media_formats?.gif?.url ?? r.media_formats?.tinygif?.url ?? '',
+        width: r.media_formats?.tinygif?.dims?.[0] ?? 200,
+        height: r.media_formats?.tinygif?.dims?.[1] ?? 150,
+      }));
+      setGifResults(results);
+    } catch (err) {
+      console.error('GIF search failed:', err);
+      setGifResults([]);
+    } finally {
+      setGifLoading(false);
+    }
+  }, []);
+
+  // Debounced GIF search
+  useEffect(() => {
+    if (!showGifSearch || !gifQuery.trim()) return;
+    const timer = setTimeout(() => {
+      void searchGifs(gifQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [gifQuery, showGifSearch, searchGifs]);
+
+  // Load trending GIFs when opening GIF search
+  useEffect(() => {
+    if (showGifSearch && gifResults.length === 0 && !gifQuery) {
+      void searchGifs('construction thumbs up');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGifSearch]);
+
+  // Send a GIF as a message
+  const handleSendGif = async (gif: GifResult) => {
+    if (!channelId) return;
+    setShowGifSearch(false);
+    setGifQuery('');
+    setGifResults([]);
+    try {
+      await sendMessage.mutateAsync({
+        channelId,
+        body: '',
+        attachments: [{
+          name: 'GIF',
+          url: gif.fullUrl,
+          thumbnailUrl: gif.previewUrl,
+          type: 'image',
+          size: 0,
+        }],
+      });
+    } catch (err) {
+      console.error('Failed to send GIF:', err);
+    }
+  };
+
+  // File upload handler
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user?.uid) return;
+
+    for (const file of Array.from(files)) {
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
+        continue;
+      }
+
+      try {
+        setUploadProgress(0);
+        const storagePath = `messages/${channelId}/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        await new Promise<void>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(Math.round(progress));
+            },
+            (error) => {
+              console.error('Upload failed:', error);
+              reject(error);
+            },
+            async () => {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              const isImage = file.type.startsWith('image/');
+              const attachment = {
+                name: file.name,
+                url: downloadUrl,
+                type: isImage ? 'image' as const : 'file' as const,
+                size: file.size,
+                ...(isImage ? { thumbnailUrl: downloadUrl } : {}),
+              };
+              setPendingAttachments((prev) => [...(prev ?? []), attachment]);
+              resolve();
+            },
+          );
+        });
+      } catch (err) {
+        console.error('File upload failed:', err);
+      } finally {
+        setUploadProgress(null);
+      }
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove a pending attachment
+  const removePendingAttachment = (index: number) => {
+    setPendingAttachments((prev) => (prev ?? []).filter((_, i) => i !== index));
+  };
+
+  // Insert emoji at cursor
+  const insertEmoji = (emoji: string) => {
+    setBody((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
+  };
+
   // Handle send
   const handleSend = async () => {
     const trimmed = body.trim();
-    if (!trimmed || !channelId) return;
+    const hasAttachments = pendingAttachments && pendingAttachments.length > 0;
+    if ((!trimmed && !hasAttachments) || !channelId) return;
 
+    const attachmentsToSend = pendingAttachments ?? [];
     setBody('');
+    setPendingAttachments([]);
     try {
       await sendMessage.mutateAsync({
         channelId,
         body: trimmed,
+        attachments: attachmentsToSend,
       });
     } catch (err) {
       console.error('Failed to send message:', err);
-      // Restore body on error
+      // Restore body and attachments on error
       setBody(trimmed);
+      setPendingAttachments(attachmentsToSend);
     }
   };
 
@@ -419,9 +634,169 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
       {/* Typing indicator */}
       <TypingIndicator channelId={channelId} />
 
+      {/* Emoji Picker */}
+      {showEmojiPicker && (
+        <div
+          ref={emojiPickerRef}
+          className="shrink-0 border-t border-slate-200 bg-white"
+        >
+          <div className="max-h-56 overflow-y-auto px-3 py-2">
+            {EMOJI_CATEGORIES.map((category) => (
+              <div key={category.name} className="mb-2">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1 px-1">
+                  {category.name}
+                </p>
+                <div className="flex flex-wrap gap-0.5">
+                  {category.emojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => insertEmoji(emoji)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-xl hover:bg-slate-100 active:bg-slate-200 transition-colors"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* GIF Search */}
+      {showGifSearch && (
+        <div
+          ref={gifSearchRef}
+          className="shrink-0 border-t border-slate-200 bg-white"
+        >
+          <div className="px-3 py-2">
+            <input
+              type="text"
+              value={gifQuery}
+              onChange={(e) => setGifQuery(e.target.value)}
+              placeholder="Search GIFs..."
+              className="w-full h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto px-3 pb-2">
+            {gifLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            ) : gifResults.length === 0 ? (
+              <p className="text-center text-xs text-slate-400 py-6">
+                {gifQuery ? 'No GIFs found' : 'Search for GIFs'}
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 gap-1.5">
+                {gifResults.map((gif) => (
+                  <button
+                    key={gif.id}
+                    onClick={() => void handleSendGif(gif)}
+                    className="rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all"
+                  >
+                    <img
+                      src={gif.previewUrl}
+                      alt="GIF"
+                      className="w-full h-20 object-cover"
+                      loading="lazy"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-center text-[10px] text-slate-300 mt-2">Powered by Tenor</p>
+          </div>
+        </div>
+      )}
+
+      {/* Pending attachments preview */}
+      {pendingAttachments && pendingAttachments.length > 0 && (
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-4 py-2">
+          <div className="flex flex-wrap gap-2">
+            {pendingAttachments.map((att, i) => (
+              <div key={i} className="relative group">
+                {att.type === 'image' ? (
+                  <img
+                    src={att.url}
+                    alt={att.name}
+                    className="h-16 w-16 rounded-lg object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <Paperclip className="h-3.5 w-3.5 text-slate-400" />
+                    <span className="text-xs text-slate-600 max-w-[100px] truncate">{att.name}</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => removePendingAttachment(i)}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress */}
+      {uploadProgress !== null && (
+        <div className="shrink-0 px-4 py-1 bg-blue-50 border-t border-blue-100">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-blue-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-200"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <span className="text-[11px] text-blue-600 font-medium">{uploadProgress}%</span>
+          </div>
+        </div>
+      )}
+
       {/* Input area */}
-      <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3">
-        <div className="flex items-center gap-2">
+      <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-2">
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+          className="hidden"
+          onChange={(e) => void handleFileSelect(e)}
+        />
+
+        <div className="flex items-center gap-1.5">
+          {/* Attachment button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadProgress !== null}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors disabled:opacity-50"
+            title="Attach file"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
+
+          {/* GIF button */}
+          <button
+            onClick={() => {
+              setShowGifSearch(!showGifSearch);
+              setShowEmojiPicker(false);
+            }}
+            className={cn(
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors',
+              showGifSearch
+                ? 'bg-blue-100 text-blue-600'
+                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600',
+            )}
+            title="Send GIF"
+          >
+            <ImageIcon className="h-5 w-5" />
+          </button>
+
+          {/* Message input */}
           <input
             ref={inputRef}
             type="text"
@@ -429,13 +804,32 @@ export function ChannelView({ channelId, onBack }: ChannelViewProps) {
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            className="flex-1 h-11 rounded-full border border-slate-300 bg-white px-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 h-10 rounded-full border border-slate-300 bg-white px-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+
+          {/* Emoji button */}
+          <button
+            onClick={() => {
+              setShowEmojiPicker(!showEmojiPicker);
+              setShowGifSearch(false);
+            }}
+            className={cn(
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors',
+              showEmojiPicker
+                ? 'bg-yellow-100 text-yellow-600'
+                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600',
+            )}
+            title="Add emoji"
+          >
+            <Smile className="h-5 w-5" />
+          </button>
+
+          {/* Send button */}
           <Button
             size="icon"
             onClick={() => void handleSend()}
-            disabled={!body.trim() || sendMessage.isPending}
-            className="h-11 w-11 rounded-full"
+            disabled={(!body.trim() && (!pendingAttachments || pendingAttachments.length === 0)) || sendMessage.isPending}
+            className="h-10 w-10 rounded-full shrink-0"
           >
             <SendHorizontal className="h-5 w-5" />
           </Button>

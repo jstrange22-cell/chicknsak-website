@@ -9,6 +9,7 @@ import {
   Shield,
   CalendarDays,
   HardHat,
+  MessageCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/components/auth/AuthProvider';
@@ -31,6 +32,7 @@ const adminTabs: AdminTab[] = [
   { icon: FileText, label: 'Invoicing', path: '/admin/invoicing' },
   { icon: BarChart3, label: 'Reports', path: '/admin/reports' },
   { icon: CalendarDays, label: 'Scheduling', path: '/admin/scheduling' },
+  { icon: MessageCircle, label: 'Messages', path: '/admin/messages' },
 ];
 
 // ---------------------------------------------------------------------------
