@@ -21,6 +21,10 @@ import { defineSecret } from "firebase-functions/params";
 // Re-export Stripe payment functions
 export { createCheckoutSession, stripeWebhook } from "./stripe";
 
+// Re-export Chick N Sak functions
+export { cnsCreateCheckoutSession } from "./cnsCheckout";
+export { onNewContactLead } from "./cnsContactEmail";
+
 // Re-export push notification functions
 export { onMessageCreated } from "./notifications";
 

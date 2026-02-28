@@ -13,17 +13,17 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'img/*'],
       manifest: {
-        name: 'ProjectWorks',
-        short_name: 'ProjectWorks',
-        description: 'Jobsite photo documentation and project management',
+        name: "Chick N Sak | Boo Jack's Sports Lounge",
+        short_name: 'Chick N Sak',
+        description: 'Where Flavor Meets the Game. K-Town Krack spice, events, and the best wings in town.',
         start_url: '/',
         scope: '/',
         id: '/',
-        theme_color: '#0f172a',
-        background_color: '#f8fafc',
+        theme_color: '#000000',
+        background_color: '#000000',
         display: 'standalone',
         orientation: 'portrait-primary',
-        categories: ['business', 'productivity'],
+        categories: ['food', 'shopping'],
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -44,14 +44,14 @@ export default defineConfig({
         ],
         shortcuts: [
           {
-            name: 'Camera',
-            url: '/camera',
-            description: 'Take a photo'
+            name: 'Menu',
+            url: '/menu',
+            description: 'View our menu'
           },
           {
-            name: 'Projects',
-            url: '/projects',
-            description: 'View projects'
+            name: 'Shop',
+            url: '/shop',
+            description: 'Shop K-Town Krack'
           }
         ]
       },

@@ -1,8 +1,31 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Default: authenticated access for all other collections
     match /{document=**} {
       allow read, write: if request.auth != null;
+    }
+
+    // Chick N Sak - Public read access for restaurant content
+    match /menu_items/{doc} {
+      allow read: if true;
+    }
+    match /products/{doc} {
+      allow read: if true;
+    }
+    match /events/{doc} {
+      allow read: if true;
+    }
+
+    // Chick N Sak - Public create for contact form submissions
+    match /leads/{doc} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'email', 'inquiryType', 'message']);
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // Chick N Sak - Orders (created by Cloud Functions, read by admin)
+    match /orders/{doc} {
+      allow read: if request.auth != null;
     }
   }
 }

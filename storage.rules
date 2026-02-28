@@ -1,6 +1,13 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Chick N Sak - Public read for restaurant images
+    match /chicknsak/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Other storage (authenticated access)
     match /photos/{allPaths=**} {
       allow read, write: if request.auth != null;
     }

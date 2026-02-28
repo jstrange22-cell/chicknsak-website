@@ -4,26 +4,27 @@ import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 touch-manipulation',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold uppercase tracking-wider transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-2 focus-visible:ring-offset-brand-black disabled:pointer-events-none disabled:opacity-50 touch-manipulation rounded-lg',
   {
     variants: {
       variant: {
-        default: 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700',
-        destructive: 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
-        outline: 'border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100',
-        secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300',
-        ghost: 'hover:bg-slate-100 active:bg-slate-200',
-        link: 'text-blue-500 underline-offset-4 hover:underline',
+        gold: 'bg-brand-gold text-black hover:bg-brand-gold-dark active:scale-[0.98]',
+        fire: 'bg-brand-red text-white hover:bg-brand-red-dark active:scale-[0.98]',
+        'outline-gold': 'border-2 border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-black',
+        'outline-white': 'border-2 border-white text-white hover:bg-white hover:text-black',
+        'ghost-light': 'text-white hover:bg-white/10',
+        'ghost-gold': 'text-brand-gold hover:bg-brand-gold/10',
       },
       size: {
-        default: 'h-12 px-4 py-2 text-sm',
-        sm: 'h-10 px-3 text-sm',
-        lg: 'h-14 px-6 text-base',
+        default: 'h-12 px-6 text-sm',
+        sm: 'h-10 px-4 text-xs',
+        lg: 'h-14 px-8 text-base',
+        xl: 'h-16 px-10 text-lg',
         icon: 'h-12 w-12',
       },
     },
     defaultVariants: {
-      variant: 'default',
+      variant: 'gold',
       size: 'default',
     },
   }
