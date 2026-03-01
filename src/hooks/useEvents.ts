@@ -9,7 +9,7 @@ const SAMPLE_EVENTS: SiteEvent[] = [
   {
     id: 'e1', title: 'Friday Night DJ Set', description: 'DJ Blaze spins the hottest tracks while you feast on wings and drinks specials all night.',
     date: Timestamp.fromDate(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)),
-    imageUrl: 'https://images.unsplash.com/photo-1571266028243-d220c6a8b0e5?w=800&q=80', vibe: 'dj-set', location: "Boo Jack's Sports Lounge", isArchived: false,
+    imageUrl: 'https://images.unsplash.com/photo-1574391884720-bbc3740c59d1?w=800&q=80', vibe: 'dj-set', location: "Boo Jack's Sports Lounge", isArchived: false,
     createdAt: Timestamp.now(),
   },
   {
