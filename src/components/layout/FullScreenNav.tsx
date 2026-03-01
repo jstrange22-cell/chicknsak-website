@@ -63,7 +63,14 @@ export function FullScreenNav({ onClose }: FullScreenNavProps) {
         exit="exit"
       >
         {/* Close Button */}
-        <div className="flex justify-end p-6">
+        <div className="flex justify-between items-center p-6">
+          <Link to="/" onClick={onClose}>
+            <img
+              src="/img/logo-dark.png"
+              alt="Chick N Sak"
+              className="h-12 w-auto"
+            />
+          </Link>
           <button
             onClick={onClose}
             className="text-white hover:text-brand-gold transition-colors p-2"

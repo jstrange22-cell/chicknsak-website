@@ -39,13 +39,12 @@ export function Navbar() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-20 items-center justify-between">
             {/* Logo */}
-            <Link to="/" className="flex flex-col items-start leading-none">
-              <span className="font-script text-2xl text-brand-gold">
-                Boo Jack's
-              </span>
-              <span className="font-heading text-sm font-bold uppercase tracking-[0.2em] text-white">
-                Chick-N-Sack
-              </span>
+            <Link to="/" className="flex items-center">
+              <img
+                src="/img/logo-dark.png"
+                alt="Chick N Sak"
+                className="h-14 w-auto"
+              />
             </Link>
 
             {/* Desktop Nav Links */}
