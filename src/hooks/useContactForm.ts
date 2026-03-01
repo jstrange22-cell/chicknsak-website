@@ -21,6 +21,12 @@ export function useContactForm() {
     setError(null);
     setSuccess(false);
 
+    if (!db) {
+      setError('Contact form is temporarily unavailable. Please call us directly.');
+      setLoading(false);
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'leads'), {
         ...data,

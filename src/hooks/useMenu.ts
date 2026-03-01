@@ -47,6 +47,14 @@ export function useMenu(category?: MenuCategory) {
   useEffect(() => {
     async function fetchMenu() {
       setLoading(true);
+      if (!db) {
+        const filtered = category
+          ? SAMPLE_MENU.filter((i) => i.category === category)
+          : SAMPLE_MENU;
+        setItems(filtered);
+        setLoading(false);
+        return;
+      }
       try {
         const menuRef = collection(db, 'menu_items');
         const constraints = [

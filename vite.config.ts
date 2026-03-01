@@ -62,7 +62,7 @@ export default defineConfig({
         clientsClaim: true,
         // selfDestroying not supported in this version
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: 'index.html',
+        navigateFallback: '/chicknsak-website/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {

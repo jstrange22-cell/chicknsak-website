@@ -38,6 +38,14 @@ export function useProducts(category?: ProductCategory) {
   useEffect(() => {
     async function fetchProducts() {
       setLoading(true);
+      if (!db) {
+        const filtered = category
+          ? SAMPLE_PRODUCTS.filter((p) => p.category === category)
+          : SAMPLE_PRODUCTS;
+        setProducts(filtered);
+        setLoading(false);
+        return;
+      }
       try {
         const ref = collection(db, 'products');
         const constraints = [

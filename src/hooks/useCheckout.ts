@@ -22,6 +22,12 @@ export function useCheckout() {
       setIsLoading(true);
       setError(null);
 
+      if (!functions) {
+        setError('Checkout is temporarily unavailable.');
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const createCheckout = httpsCallable<
           {

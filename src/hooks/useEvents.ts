@@ -39,6 +39,11 @@ export function useEvents() {
   useEffect(() => {
     async function fetchEvents() {
       setLoading(true);
+      if (!db) {
+        setEvents(SAMPLE_EVENTS);
+        setLoading(false);
+        return;
+      }
       try {
         const ref = collection(db, 'events');
         const q = query(ref, orderBy('date', 'desc'));

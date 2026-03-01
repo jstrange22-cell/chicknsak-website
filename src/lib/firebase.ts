@@ -1,7 +1,7 @@
-import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getFunctions } from 'firebase/functions';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { getFunctions, type Functions } from 'firebase/functions';
 import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -14,15 +14,27 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-export const app = initializeApp(firebaseConfig);
+let app: FirebaseApp | null = null;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
+let functions: Functions | null = null;
 
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
-});
+try {
+  app = initializeApp(firebaseConfig);
 
-export const storage = getStorage(app);
-export const functions = getFunctions(app);
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
 
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+  storage = getStorage(app);
+  functions = getFunctions(app);
+} catch (e) {
+  console.warn('Firebase initialization failed — running in offline/demo mode:', e);
+}
+
+export { app, db, storage, functions };
+
+export const analytics =
+  typeof window !== 'undefined' && app ? getAnalytics(app) : null;
