@@ -9,25 +9,25 @@ const SAMPLE_EVENTS: SiteEvent[] = [
   {
     id: 'e1', title: 'Friday Night DJ Set', description: 'DJ Blaze spins the hottest tracks while you feast on wings and drinks specials all night.',
     date: Timestamp.fromDate(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)),
-    imageUrl: '', vibe: 'dj-set', location: "Boo Jack's Sports Lounge", isArchived: false,
+    imageUrl: 'https://images.unsplash.com/photo-1571266028243-d220c6a8b0e5?w=800&q=80', vibe: 'dj-set', location: "Boo Jack's Sports Lounge", isArchived: false,
     createdAt: Timestamp.now(),
   },
   {
     id: 'e2', title: 'Super Bowl Watch Party', description: 'The ultimate game day experience. Giant screens, wing specials, and VIP table reservations available.',
     date: Timestamp.fromDate(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)),
-    imageUrl: '', vibe: 'game-night', location: "Boo Jack's Sports Lounge", isArchived: false,
+    imageUrl: 'https://images.unsplash.com/photo-1489944440615-453fc2b6a9a9?w=800&q=80', vibe: 'game-night', location: "Boo Jack's Sports Lounge", isArchived: false,
     createdAt: Timestamp.now(),
   },
   {
     id: 'e3', title: 'Live Music Saturday', description: 'Local artists take the stage for an unforgettable night of live music and soul food.',
     date: Timestamp.fromDate(new Date(now.getTime() + 9 * 24 * 60 * 60 * 1000)),
-    imageUrl: '', vibe: 'live-music', location: "Boo Jack's Sports Lounge", isArchived: false,
+    imageUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80', vibe: 'live-music', location: "Boo Jack's Sports Lounge", isArchived: false,
     createdAt: Timestamp.now(),
   },
   {
     id: 'e4', title: 'K-Town Krack Launch Party', description: 'The night we dropped the XXX blend. A legendary evening of heat and beats.',
     date: Timestamp.fromDate(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)),
-    imageUrl: '', vibe: 'special', location: "Boo Jack's Sports Lounge", isArchived: true,
+    imageUrl: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&q=80', vibe: 'special', location: "Boo Jack's Sports Lounge", isArchived: true,
     createdAt: Timestamp.now(),
   },
 ];
