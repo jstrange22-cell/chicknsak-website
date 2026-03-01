@@ -10,7 +10,7 @@ export function Footer() {
           <div>
             <Link to="/" className="inline-block">
               <img
-                src="/img/logo-dark.png"
+                src={`${import.meta.env.BASE_URL}img/logo-dark.png`}
                 alt="Chick N Sak"
                 className="h-16 w-auto"
               />

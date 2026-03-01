@@ -41,7 +41,7 @@ export function Navbar() {
             {/* Logo */}
             <Link to="/" className="flex items-center">
               <img
-                src="/img/logo-dark.png"
+                src={`${import.meta.env.BASE_URL}img/logo-dark.png`}
                 alt="Chick N Sak"
                 className="h-14 w-auto"
               />

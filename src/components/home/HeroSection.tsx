@@ -29,7 +29,7 @@ export function HeroSection() {
           className="flex justify-center mb-4"
         >
           <img
-            src="/img/logo-full-dark.png"
+            src={`${import.meta.env.BASE_URL}img/logo-full-dark.png`}
             alt="Boo Jack's Chick-N-Sack"
             className="h-40 sm:h-48 md:h-56 w-auto"
           />

@@ -66,7 +66,7 @@ export function FullScreenNav({ onClose }: FullScreenNavProps) {
         <div className="flex justify-between items-center p-6">
           <Link to="/" onClick={onClose}>
             <img
-              src="/img/logo-dark.png"
+              src={`${import.meta.env.BASE_URL}img/logo-dark.png`}
               alt="Chick N Sak"
               className="h-12 w-auto"
             />
