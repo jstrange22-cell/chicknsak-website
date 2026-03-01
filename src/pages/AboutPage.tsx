@@ -54,6 +54,17 @@ export default function AboutPage() {
           </div>
         </ScrollReveal>
 
+        {/* Magazine Feature */}
+        <ScrollReveal>
+          <div className="flex justify-center mb-16">
+            <img
+              src={`${import.meta.env.BASE_URL}img/magazine-cover.jpg`}
+              alt="Boo Jack's Chick-N-Sack featured on Everything Knoxville magazine"
+              className="rounded-2xl border border-brand-gray-light max-w-sm w-full shadow-2xl"
+            />
+          </div>
+        </ScrollReveal>
+
         {/* Timeline */}
         <div className="relative">
           {/* Center line */}

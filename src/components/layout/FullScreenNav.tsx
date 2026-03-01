@@ -64,9 +64,12 @@ export function FullScreenNav({ onClose }: FullScreenNavProps) {
       >
         {/* Close Button */}
         <div className="flex justify-between items-center p-6">
-          <Link to="/" onClick={onClose} className="flex flex-col items-start leading-none">
-            <span className="font-script text-2xl text-brand-gold">Boo Jack's</span>
-            <span className="font-heading text-xs font-bold uppercase tracking-[0.2em] text-white">Chick-N-Sack</span>
+          <Link to="/" onClick={onClose}>
+            <img
+              src={`${import.meta.env.BASE_URL}img/logo.png`}
+              alt="Boo Jack's Chick-N-Sack"
+              className="h-12 w-auto"
+            />
           </Link>
           <button
             onClick={onClose}

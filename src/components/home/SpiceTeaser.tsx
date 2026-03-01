@@ -1,6 +1,4 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Flame } from 'lucide-react';
 import { ScrollReveal } from '@/components/effects/ScrollReveal';
 
 export function SpiceTeaser() {
@@ -20,25 +18,11 @@ export function SpiceTeaser() {
           {/* Left: Product visual */}
           <ScrollReveal direction="left">
             <div className="relative aspect-square max-w-md mx-auto">
-              <div className="w-full h-full rounded-2xl bg-brand-gray border border-brand-gray-light flex items-center justify-center relative overflow-hidden">
-                {/* Animated fire ring */}
-                <motion.div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      'radial-gradient(circle, transparent 40%, rgba(255,0,0,0.1) 60%, transparent 70%)',
-                  }}
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                />
-                <div className="text-center z-10">
-                  <Flame className="h-24 w-24 text-brand-red mx-auto mb-4" style={{ animation: 'fire-flicker 2s ease-in-out infinite' }} />
-                  <span className="font-heading text-3xl font-bold text-brand-gold">
-                    K-TOWN KRACK
-                  </span>
-                  <p className="text-brand-muted text-sm mt-2">Image coming soon</p>
-                </div>
-              </div>
+              <img
+                src={`${import.meta.env.BASE_URL}img/ktownkrack-product.jpg`}
+                alt="K-Town Krack Hot Chicken Dust Seasoning"
+                className="w-full h-full object-cover rounded-2xl"
+              />
             </div>
           </ScrollReveal>
 

@@ -7,6 +7,11 @@ export function HeroSection() {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-brand-black">
+        <img
+          src={`${import.meta.env.BASE_URL}img/hero-chef.jpg`}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black z-10" />
         {/* Animated background pattern */}
