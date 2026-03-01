@@ -3,7 +3,7 @@ export function AnnouncementBanner() {
     'Coming Soon Summer of 2026 \u00B7 Register today for news and Grand Opening date';
 
   return (
-    <div className="fixed top-20 left-0 right-0 z-30 bg-brand-gold overflow-hidden h-10 flex items-center">
+    <div className="bg-brand-gold overflow-hidden h-10 flex items-center">
       <div className="animate-marquee whitespace-nowrap flex gap-16">
         {/* Duplicate text for seamless loop */}
         {[0, 1, 2, 3].map((i) => (
