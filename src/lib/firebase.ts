@@ -19,19 +19,27 @@ let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 let functions: Functions | null = null;
 
-try {
-  app = initializeApp(firebaseConfig);
+if (firebaseConfig.apiKey) {
+  try {
+    app = initializeApp(firebaseConfig);
 
-  db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager(),
-    }),
-  });
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
 
-  storage = getStorage(app);
-  functions = getFunctions(app);
-} catch (e) {
-  console.warn('Firebase initialization failed — running in offline/demo mode:', e);
+    storage = getStorage(app);
+    functions = getFunctions(app);
+  } catch (e) {
+    console.warn('Firebase initialization failed — running in demo mode:', e);
+    app = null;
+    db = null;
+    storage = null;
+    functions = null;
+  }
+} else {
+  console.warn('Firebase API key not configured — running in demo mode with sample data.');
 }
 
 export { app, db, storage, functions };
