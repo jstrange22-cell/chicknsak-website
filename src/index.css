@@ -16,6 +16,8 @@
   --font-heading: 'Oswald', 'Arial Narrow', sans-serif;
   --font-script: 'Great Vibes', cursive;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --animate-marquee: marquee 20s linear infinite;
 }
 
 /* Base Styles */

@@ -42,10 +42,10 @@ export const RESTAURANT_INFO = {
   phone: '(555) 555-5555',
   email: 'info@chicknsak.com',
   address: {
-    street: '123 Main Street',
-    city: 'K-Town',
-    state: 'GA',
-    zip: '30301',
+    street: '410 W Jackson Ave',
+    city: 'Knoxville',
+    state: 'TN',
+    zip: '37902',
   },
   hours: [
     { days: 'Monday - Thursday', hours: '11:00 AM - 10:00 PM' },

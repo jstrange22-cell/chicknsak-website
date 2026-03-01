@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Navbar } from './Navbar';
+import { AnnouncementBanner } from './AnnouncementBanner';
 import { Footer } from './Footer';
 
 const pageVariants = {
@@ -23,6 +24,7 @@ export function SiteLayout() {
   return (
     <div className="min-h-screen bg-brand-black text-white">
       <Navbar />
+      <AnnouncementBanner />
       <AnimatePresence mode="wait">
         <motion.main
           key={location.pathname}
