@@ -39,7 +39,7 @@ export const SOCIAL_LINKS = {
 } as const;
 
 export const RESTAURANT_INFO = {
-  phone: '(555) 555-5555',
+  phone: '(865) 555-1234',
   email: 'info@chicknsak.com',
   address: {
     street: '410 W Jackson Ave',

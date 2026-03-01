@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { XCircle, ArrowRight } from 'lucide-react';
 export default function CheckoutCancelPage() {
   return (
-    <div className="pt-32 pb-20 px-4 min-h-screen flex items-center justify-center">
+    <div className="pt-8 pb-20 px-4 min-h-screen flex items-center justify-center">
       <motion.div
         className="text-center max-w-lg mx-auto"
         initial={{ opacity: 0, scale: 0.9 }}

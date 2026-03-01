@@ -5,7 +5,7 @@ import { RESTAURANT_INFO } from '@/lib/constants';
 
 export default function ContactPage() {
   return (
-    <div className="pt-32 pb-20 px-4 min-h-screen">
+    <div className="pt-8 pb-20 px-4 min-h-screen">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <ScrollReveal>

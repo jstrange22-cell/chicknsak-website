@@ -4,6 +4,7 @@ import { SpiceTeaser } from '@/components/home/SpiceTeaser';
 import { PhotoGallery } from '@/components/home/PhotoGallery';
 import { UpcomingEvents } from '@/components/home/UpcomingEvents';
 import { LocationMap } from '@/components/home/LocationMap';
+import { SocialSection } from '@/components/home/SocialSection';
 
 export default function HomePage() {
   return (
@@ -14,6 +15,7 @@ export default function HomePage() {
       <PhotoGallery />
       <UpcomingEvents />
       <LocationMap />
+      <SocialSection />
     </>
   );
 }

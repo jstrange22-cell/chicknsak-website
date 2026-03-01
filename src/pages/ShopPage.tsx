@@ -28,7 +28,7 @@ export default function ShopPage() {
   ];
 
   return (
-    <div className="pt-32 pb-20 px-4 min-h-screen relative">
+    <div className="pt-8 pb-20 px-4 min-h-screen relative">
       <SpiceDustCursor />
 
       <div className="max-w-7xl mx-auto">

@@ -1,26 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingBag, Menu } from 'lucide-react';
+import { ShoppingBag, Phone, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { NAV_LINKS } from '@/lib/constants';
+import { NAV_LINKS, RESTAURANT_INFO } from '@/lib/constants';
 import { useCart } from '@/hooks/useCart';
 import { FullScreenNav } from './FullScreenNav';
 
 export function Navbar() {
-  const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const totalItems = useCart((s) => s.totalItems);
-  const isHome = location.pathname === '/';
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -28,14 +17,7 @@ export function Navbar() {
 
   return (
     <>
-      <nav
-        className={cn(
-          'fixed top-0 left-0 right-0 z-40 transition-all duration-300',
-          scrolled || !isHome
-            ? 'bg-brand-black/95 backdrop-blur-md border-b border-brand-gray-light/30'
-            : 'bg-transparent'
-        )}
-      >
+      <nav className="bg-brand-black/95 backdrop-blur-md border-b border-brand-gray-light/30">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-20 items-center justify-between">
             {/* Logo */}
@@ -53,20 +35,27 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   to={link.href}
-                  className={cn(
-                    'font-heading text-sm font-semibold uppercase tracking-widest transition-colors duration-200',
+                  className={`font-heading text-sm font-semibold uppercase tracking-widest transition-colors duration-200 ${
                     location.pathname === link.href
                       ? 'text-brand-gold'
                       : 'text-white hover:text-brand-gold'
-                  )}
+                  }`}
                 >
                   {link.label}
                 </Link>
               ))}
             </div>
 
-            {/* Right side: Cart + Hamburger */}
+            {/* Right side: Phone + Cart + Hamburger */}
             <div className="flex items-center gap-4">
+              <a
+                href={`tel:${RESTAURANT_INFO.phone.replace(/\D/g, '')}`}
+                className="hidden sm:flex items-center gap-2 text-brand-muted hover:text-brand-gold transition-colors"
+              >
+                <Phone className="h-4 w-4" />
+                <span className="text-sm font-medium">{RESTAURANT_INFO.phone}</span>
+              </a>
+
               <Link
                 to="/shop"
                 className="relative text-white hover:text-brand-gold transition-colors"

@@ -36,7 +36,7 @@ const TIMELINE = [
 
 export default function AboutPage() {
   return (
-    <div className="pt-32 pb-20 px-4 min-h-screen">
+    <div className="pt-8 pb-20 px-4 min-h-screen">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <ScrollReveal>

@@ -9,7 +9,7 @@ export default function EventsPage() {
   const nextEvent = upcomingEvents[0];
 
   return (
-    <div className="pt-32 pb-20 px-4 min-h-screen">
+    <div className="pt-8 pb-20 px-4 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <ScrollReveal>

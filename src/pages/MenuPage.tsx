@@ -10,7 +10,7 @@ export default function MenuPage() {
   const { items, loading } = useMenu(category === 'all' ? undefined : category);
 
   return (
-    <div className="pt-32 pb-20 px-4 min-h-screen">
+    <div className="pt-8 pb-20 px-4 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <ScrollReveal>
