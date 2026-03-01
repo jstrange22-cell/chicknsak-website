@@ -1,12 +1,21 @@
-name: Deploy to Hostinger
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -32,23 +41,23 @@ jobs:
           VITE_FIREBASE_APP_ID: '1:876322383528:web:654de92bee2c70015bc49d'
           VITE_FIREBASE_MEASUREMENT_ID: G-3KCTDBLGR9
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-          VITE_APP_URL: https://gray-barracuda-245114.hostingersite.com
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
-      - name: Copy API files into dist
-        run: |
-          mkdir -p dist/api
-          cp public/api/jobtread-proxy.php dist/api/jobtread-proxy.php
-          cp public/api/.htaccess dist/api/.htaccess
+      - name: Copy index.html to 404.html for SPA routing
+        run: cp dist/index.html dist/404.html
 
-      - name: Deploy to Hostinger via SSH
-        uses: appleboy/scp-action@v0.1.7
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          host: 151.106.104.229
-          username: u959857201
-          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
-          port: 65002
-          source: 'dist/*'
-          target: '/home/u959857201/domains/gray-barracuda-245114.hostingersite.com/public_html'
-          strip_components: 1
-          rm: true
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

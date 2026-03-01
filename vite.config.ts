@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 export default defineConfig({
+  base: '/chicknsak-website/',
   plugins: [
     react(),
     tailwindcss(),
@@ -16,9 +17,9 @@ export default defineConfig({
         name: "Chick N Sak | Boo Jack's Sports Lounge",
         short_name: 'Chick N Sak',
         description: 'Where Flavor Meets the Game. K-Town Krack spice, events, and the best wings in town.',
-        start_url: '/',
-        scope: '/',
-        id: '/',
+        start_url: '/chicknsak-website/',
+        scope: '/chicknsak-website/',
+        id: '/chicknsak-website/',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
@@ -45,12 +46,12 @@ export default defineConfig({
         shortcuts: [
           {
             name: 'Menu',
-            url: '/menu',
+            url: '/chicknsak-website/menu',
             description: 'View our menu'
           },
           {
             name: 'Shop',
-            url: '/shop',
+            url: '/chicknsak-website/shop',
             description: 'Shop K-Town Krack'
           }
         ]

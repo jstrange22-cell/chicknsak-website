@@ -21,7 +21,7 @@ const CheckoutCancelPage = lazy(() => import('@/pages/CheckoutCancelPage'));
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/chicknsak-website">
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route element={<SiteLayout />}>
