@@ -26,13 +26,10 @@ export function HeroSection() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="flex justify-center mb-4"
         >
-          <img
-            src={`${import.meta.env.BASE_URL}img/logo-full-dark.png`}
-            alt="Boo Jack's Chick-N-Sack"
-            className="h-40 sm:h-48 md:h-56 w-auto"
-          />
+          <span className="font-script text-5xl sm:text-6xl md:text-7xl text-brand-gold block mb-2">
+            Boo Jack's
+          </span>
         </motion.div>
 
         <KineticText

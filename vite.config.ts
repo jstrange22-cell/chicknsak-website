@@ -12,7 +12,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'img/*'],
+      includeAssets: [],
       manifest: {
         name: "Chick N Sak | Boo Jack's Sports Lounge",
         short_name: 'Chick N Sak',
@@ -25,24 +25,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait-primary',
         categories: ['food', 'shopping'],
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-maskable-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
-          }
-        ],
+        icons: [],
         shortcuts: [
           {
             name: 'Menu',

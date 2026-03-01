@@ -9,11 +9,8 @@ export function Footer() {
           {/* Brand */}
           <div>
             <Link to="/" className="inline-block">
-              <img
-                src={`${import.meta.env.BASE_URL}img/logo-dark.png`}
-                alt="Chick N Sak"
-                className="h-16 w-auto"
-              />
+              <span className="font-script text-3xl text-brand-gold">Boo Jack's</span>
+              <span className="block font-heading text-sm font-bold uppercase tracking-[0.2em] text-white mt-1">Chick-N-Sack</span>
             </Link>
             <p className="mt-4 text-sm text-brand-muted leading-relaxed">
               {BRAND.tagline} &middot; Est. {BRAND.established}
